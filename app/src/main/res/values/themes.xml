@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Window-level theme only (all UI is Jetpack Compose). -->
+    <style name="Theme.ShadowLearn" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/shadow_background</item>
+        <item name="android:statusBarColor">@color/shadow_background</item>
+        <item name="android:navigationBarColor">@color/shadow_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

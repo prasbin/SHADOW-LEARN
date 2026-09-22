@@ -1,0 +1,28 @@
+# Gradle
+.gradle/
+.kotlin/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+
+# Android / app build outputs
+**/build/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Local SDK + signing (machine-specific, secrets)
+local.properties
+*.jks
+*.keystore
+
+# Room schema exports are INTENTIONALLY committed (app/schemas/) for migration tests.
+
+# IDE (keep shared code style out of this phase; ignore machine files)
+.idea/
+*.iml
+.DS_Store
+
+# Kotlin / misc
+*.class
