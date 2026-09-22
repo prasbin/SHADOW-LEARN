@@ -1,6 +1,7 @@
 package com.prasbin.shadowlearn.navigation
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Quiz
@@ -8,7 +9,6 @@ import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Style
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.ui.graphics.vector.ImageVector
 
 object Routes {
@@ -32,6 +32,6 @@ val destinations = listOf(
     Destination(Routes.QUIZ, "Quiz", Icons.Filled.Quiz),
     Destination(Routes.LISTENER, "Listen", Icons.Filled.Mic),
     Destination(Routes.FLASHCARDS, "Cards", Icons.Filled.Style),
-    Destination(Routes.PROGRESS, "Progress", Icons.Filled.TrendingUp),
+    Destination(Routes.PROGRESS, "Progress", Icons.AutoMirrored.Filled.TrendingUp),
     Destination(Routes.SETTINGS, "Settings", Icons.Filled.Settings)
 )
