@@ -56,6 +56,32 @@ interface AcademicDao {
     @Query("SELECT * FROM academic_files WHERE sha256 = :sha256 LIMIT 1")
     suspend fun findFileByHash(sha256: String): AcademicFile?
 
+    @Query("SELECT * FROM modules WHERE semesterId = :semesterId AND name = :name LIMIT 1")
+    suspend fun findModule(semesterId: Long, name: String): Module?
+
+    @Query("SELECT * FROM weeks WHERE moduleId = :moduleId AND weekNumber = :weekNumber LIMIT 1")
+    suspend fun findWeek(moduleId: Long, weekNumber: Int): Week?
+
+    // ---- Phase 2 hierarchy browser -----------------------------------------
+
+    @Query("SELECT * FROM modules WHERE semesterId = :semesterId ORDER BY name")
+    suspend fun getModules(semesterId: Long): List<Module>
+
+    @Query("SELECT * FROM weeks WHERE moduleId = :moduleId ORDER BY weekNumber")
+    fun observeWeeks(moduleId: Long): Flow<List<Week>>
+
+    @Query("SELECT * FROM weeks WHERE moduleId = :moduleId ORDER BY weekNumber")
+    suspend fun getWeeks(moduleId: Long): List<Week>
+
+    @Query("SELECT * FROM academic_files WHERE weekId = :weekId ORDER BY fileName")
+    fun observeFiles(weekId: Long): Flow<List<AcademicFile>>
+
+    @Query("SELECT * FROM academic_files WHERE weekId = :weekId ORDER BY fileName")
+    suspend fun getFiles(weekId: Long): List<AcademicFile>
+
+    @Query("SELECT COUNT(*) FROM academic_files WHERE weekId IN (SELECT id FROM weeks WHERE moduleId IN (SELECT id FROM modules WHERE semesterId = :semesterId))")
+    fun observeSemesterFileCount(semesterId: Long): Flow<Int>
+
     // ---- deletes (cascades via FKs) ----------------------------------------
 
     @Query("DELETE FROM academic_years WHERE id = :id")
