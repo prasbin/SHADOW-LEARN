@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 /** Phase 1 DAO: hierarchy CRUD + counts the dashboard/settings read. */
@@ -26,6 +27,15 @@ interface AcademicDao {
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertFile(file: AcademicFile): Long
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertContent(content: SourceFile): Long
+
+    @Update
+    suspend fun updateFile(file: AcademicFile)
+
+    @Query("DELETE FROM academic_files WHERE id = :id")
+    suspend fun deleteFile(id: Long)
 
     // ---- reads -------------------------------------------------------------
 
@@ -53,6 +63,15 @@ interface AcademicDao {
     @Query("SELECT COUNT(*) FROM academic_files")
     suspend fun getFileCount(): Int
 
+    @Query("SELECT COUNT(*) FROM source_files")
+    suspend fun getContentCount(): Int
+
+    @Query("SELECT * FROM source_files ORDER BY sha256")
+    suspend fun getSources(): List<SourceFile>
+
+    @Query("SELECT COUNT(*) FROM source_files WHERE refCount > 0")
+    suspend fun getReferencedContentCount(): Int
+
     @Query("SELECT * FROM academic_files WHERE sha256 = :sha256 LIMIT 1")
     suspend fun findFileByHash(sha256: String): AcademicFile?
 
@@ -61,6 +80,44 @@ interface AcademicDao {
 
     @Query("SELECT * FROM weeks WHERE moduleId = :moduleId AND weekNumber = :weekNumber LIMIT 1")
     suspend fun findWeek(moduleId: Long, weekNumber: Int): Week?
+
+    // ---- Phase 3 reconciliation lookups ------------------------------------
+
+    /** Row at the same logical position (semester + relativePath). */
+    @Query(
+        "SELECT f.* FROM academic_files f " +
+            "JOIN weeks w ON w.id = f.weekId " +
+            "JOIN modules m ON m.id = w.moduleId " +
+            "WHERE m.semesterId = :semesterId AND f.relativePath = :relativePath LIMIT 1"
+    )
+    suspend fun findFileByPosition(semesterId: Long, relativePath: String): AcademicFile?
+
+    /** Any row already holding this content within the semester (duplicate check). */
+    @Query(
+        "SELECT f.* FROM academic_files f " +
+            "JOIN weeks w ON w.id = f.weekId " +
+            "JOIN modules m ON m.id = w.moduleId " +
+            "WHERE m.semesterId = :semesterId AND f.sha256 = :sha256 LIMIT 1"
+    )
+    suspend fun findFileByHashInSemester(semesterId: Long, sha256: String): AcademicFile?
+
+    /** Content row owning the physical copy for this hash (app-global). */
+    @Query("SELECT * FROM source_files WHERE sha256 = :sha256 LIMIT 1")
+    suspend fun findContentByHash(sha256: String): SourceFile?
+
+    // ---- Phase 3 refcount maintenance (run at end of each import) ----------
+
+    @Query(
+        "UPDATE source_files SET refCount = " +
+            "(SELECT COUNT(*) FROM academic_files WHERE academic_files.sourceFileId = source_files.id)"
+    )
+    suspend fun refreshRefCounts()
+
+    @Query("SELECT * FROM source_files WHERE refCount <= 0")
+    suspend fun zeroRefContents(): List<SourceFile>
+
+    @Query("DELETE FROM source_files WHERE refCount <= 0")
+    suspend fun deleteZeroRefContents()
 
     // ---- Phase 2 hierarchy browser -----------------------------------------
 

@@ -194,7 +194,12 @@ private fun ImportStatus(state: IngestState) {
         }
         is IngestState.Done -> {
             val r = state.summary
-            StatRow("Result", "Imported ${r.files} file(s) in ${r.weeks} week(s) across ${r.modules} module(s)")
+            StatRow("Structure", "${r.modules} module(s), ${r.weeks} week(s)")
+            StatRow("New", r.created.toString())
+            StatRow("Changed", r.changed.toString())
+            StatRow("Duplicate", r.duplicate.toString())
+            StatRow("Unchanged", r.unchanged.toString())
+            StatRow("Failed", r.failed.toString())
             if (r.skipped > 0) StatRow("Skipped", r.skipped.toString())
             ErrorList(r.errors)
         }

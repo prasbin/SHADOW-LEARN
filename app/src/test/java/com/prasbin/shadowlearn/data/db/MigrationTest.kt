@@ -12,11 +12,11 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * v1 → v2 migration test: builds a REAL v1 database file from the committed
- * `app/schemas/.../1.json` export (table SQL + identity hash), inserts v1
- * rows, then opens it with the v2 [ShadowLearnDatabase] (declared
- * AutoMigration 1→2) and verifies every row survives with the new columns
- * defaulted. No destructive migration anywhere in this path.
+ * Migration tests: builds a REAL database file at an older version from the
+ * committed schema exports (`app/schemas/…/N.json` — table SQL + identity
+ * hash), then opens it with the current [ShadowLearnDatabase] so the shipped
+ * [androidx.room.AutoMigration]s run and verifies every row survives with
+ * the new columns defaulted. No destructive migration anywhere in this path.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -24,23 +24,20 @@ class MigrationTest {
 
     private val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
-    private fun schemaJson(): JSONObject {
-        val stream = javaClass.classLoader!!.getResourceAsStream("schemas/1.json")
-            ?: error("schemas/1.json test resource missing")
+    private fun schemaJson(version: Int): JSONObject {
+        val stream = javaClass.classLoader!!.getResourceAsStream("schemas/$version.json")
+            ?: error("schemas/$version.json test resource missing")
         return JSONObject(stream.bufferedReader().readText())
     }
 
-    @Test
-    fun migrate1To2_preservesRowsAndDefaultsNewColumns() {
-        val schema = schemaJson()
-        val database = schema.getJSONObject("database")
-        val v1Hash = database.getString("identityHash")
-        val dbFile = context.getDatabasePath("migtest.db")
+    /** Executes the committed schema's DDL into an empty SQLite file at [version]. */
+    @Suppress("DEPRECATION")
+    private fun buildVersionedDb(dbFile: java.io.File, version: Int) {
+        val database = schemaJson(version).getJSONObject("database")
+        val vHash = database.getString("identityHash")
         dbFile.parentFile?.mkdirs()
         if (dbFile.exists()) dbFile.delete()
-
-        // --- create a genuine v1 file --------------------------------------
-        val raw = SQLiteDatabase.openOrCreateDatabase(dbFile, null)
+        val raw = android.database.sqlite.SQLiteDatabase.openOrCreateDatabase(dbFile, null)
         val entities = database.getJSONArray("entities")
         for (i in 0 until entities.length()) {
             val e = entities.getJSONObject(i)
@@ -48,7 +45,18 @@ class MigrationTest {
             raw.execSQL(sql)
         }
         raw.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)")
-        raw.execSQL("INSERT INTO room_master_table (id, identity_hash) VALUES (42, ?)", arrayOf(v1Hash))
+        raw.execSQL("INSERT INTO room_master_table (id, identity_hash) VALUES (42, ?)", arrayOf(vHash))
+        raw.execSQL("PRAGMA user_version = $version")
+        raw.close()
+    }
+
+    @Test
+    fun migrate1ToCurrent_preservesRowsAndDefaultsNewColumns() {
+        val dbFile = context.getDatabasePath("migtest1.db")
+        buildVersionedDb(dbFile, 1)
+
+        // --- v1 rows ---------------------------------------------------------
+        val raw = android.database.sqlite.SQLiteDatabase.openOrCreateDatabase(dbFile, null)
         raw.execSQL("INSERT INTO academic_years (id, name, sortOrder) VALUES (1, 'Year 2', 2)")
         raw.execSQL("INSERT INTO semesters (id, yearId, name, sortOrder) VALUES (1, 1, 'Semester 1', 1)")
         raw.execSQL("INSERT INTO modules (id, semesterId, name, code) VALUES (1, 1, 'Programming', 'CS201')")
@@ -58,15 +66,14 @@ class MigrationTest {
                 "fileSize, lastModified, indexed, createdAt, updatedAt) " +
                 "VALUES (1, 1, 'l.pdf', '/old/path', 'pdf', 'abc', 10, 5, 0, 1, 2)"
         )
-        raw.execSQL("PRAGMA user_version = 1")
         raw.close()
 
-        // --- open with v2 (AutoMigration 1→2 applies automatically) ---------
-        val db = Room.databaseBuilder(context, ShadowLearnDatabase::class.java, "migtest.db")
+        // --- open with the current DB (AutoMigrations 1→2→3 apply) ----------
+        val db = Room.databaseBuilder(context, ShadowLearnDatabase::class.java, "migtest1.db")
             .allowMainThreadQueries()
             .build()
         try {
-            assertEquals(2, db.openHelper.readableDatabase.version)
+            assertEquals(3, db.openHelper.readableDatabase.version)
             val dao = db.academicDao()
             runBlocking {
                 assertEquals(listOf("Year 2"), dao.getYears().map { it.name })
@@ -74,10 +81,52 @@ class MigrationTest {
                 assertEquals(1, dao.getModuleCount())
                 val file = dao.findFileByHash("abc")!!
                 assertEquals("l.pdf", file.fileName)
-                // New v2 columns defaulted, old data untouched.
+                // New v2/v3 columns defaulted, old data untouched.
                 assertEquals("OTHER", file.classType)
                 assertEquals("", file.relativePath)
                 assertEquals("/old/path", file.filePath)
+                assertEquals(null, file.sourceFileId)
+                assertEquals(0, dao.getContentCount())
+            }
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun migrate2ToCurrent_preservesRowsAndLinksV3Column() {
+        val dbFile = context.getDatabasePath("migtest2.db")
+        buildVersionedDb(dbFile, 2)
+
+        // v2 rows (identical insert shape to v1, plus a v2 column value).
+        val raw = android.database.sqlite.SQLiteDatabase.openOrCreateDatabase(dbFile, null)
+        raw.execSQL("INSERT INTO academic_years (id, name, sortOrder) VALUES (1, 'Year 2', 2)")
+        raw.execSQL("INSERT INTO semesters (id, yearId, name, sortOrder) VALUES (1, 1, 'Semester 1', 1)")
+        raw.execSQL("INSERT INTO modules (id, semesterId, name, code) VALUES (1, 1, 'Programming', 'CS201')")
+        raw.execSQL("INSERT INTO weeks (id, moduleId, weekNumber, title) VALUES (1, 1, 3, 'Week 3')")
+        raw.execSQL(
+            "INSERT INTO academic_files (id, weekId, fileName, filePath, fileType, sha256, classType, " +
+                "relativePath, fileSize, lastModified, indexed, createdAt, updatedAt) " +
+                "VALUES (1, 1, 'l.pdf', '/app/academic/i1/Programming.zip/Week 3/Lecture/l.pdf', 'pdf', " +
+                "'deadbeef', 'LECTURE', 'Programming.zip/Week 3/Lecture/l.pdf', 10, 5, 0, 1, 2)"
+        )
+        raw.close()
+
+        // --- open with the current DB (AutoMigration 2→3 applies) ----------
+        val db = Room.databaseBuilder(context, ShadowLearnDatabase::class.java, "migtest2.db")
+            .allowMainThreadQueries()
+            .build()
+        try {
+            assertEquals(3, db.openHelper.readableDatabase.version)
+            val dao = db.academicDao()
+            runBlocking {
+                assertEquals(listOf("Year 2"), dao.getYears().map { it.name })
+                val file = dao.findFileByHash("deadbeef")!!
+                assertEquals("LECTURE", file.classType)
+                assertEquals("Programming.zip/Week 3/Lecture/l.pdf", file.relativePath)
+                // New v3 column defaults to NULL; content table starts empty.
+                assertEquals(null, file.sourceFileId)
+                assertEquals(0, dao.getContentCount())
             }
         } finally {
             db.close()

@@ -1,4 +1,4 @@
-# Setup & Build — SHADOW LEARN (Phase 2)
+# Setup & Build — SHADOW LEARN (Phase 3)
 
 ## 1. Requirements (exact)
 
@@ -44,7 +44,7 @@ E:\Desktop\AGENTS-UP` v2.0\.tools\gradle-8.13\bin\gradle.bat wrapper --gradle-ve
 ```powershell
 .\gradlew.bat assembleDebug          # APK: app\build\outputs\apk\debug\app-debug.apk
 .\gradlew.bat testDebugUnitTest      # unit tests (Robolectric Room tests included)
-.\gradlew.bat testDebugUnitTest assembleDebug   # full Phase 2 check (34 tests)
+.\gradlew.bat testDebugUnitTest assembleDebug   # full Phase 3 check (51 tests)
 .\gradlew.bat :app:installDebug      # needs a device/emulator on adb
 ```
 
@@ -67,11 +67,18 @@ E:\Desktop\AGENTS-UP` v2.0\.tools\gradle-8.13\bin\gradle.bat wrapper --gradle-ve
   remains as fallback. Re-seed with curl if the API level under test changes:
   `curl.exe -o <deps>/android-all-instrumented-<ver>.jar <mirror-url>`.
 - Emulator AVDs available: `CE_Test`, `Medium_Phone_API_36.1`.
-- Emulator verification (2026-09-22, `CE_Test`, API 36, `-no-window
-  -gpu swiftshader_indirect`): pushed a fixture semester ZIP + a corrupt ZIP
-  to `/sdcard/Download/`, drove the Academic tab via `input tap` +
-  `uiautomator dump` (SAF picker → import), and confirmed hierarchy rows,
-  app-private copies, SHA-256, and the clean corrupt-archive failure. The
+- Emulator verification (2026-09-23, `CE_Test`, API 36, `-no-window
+  -gpu swiftshader_indirect`): fresh v3 install; drove the full incremental
+  session via `input tap` + `uiautomator dump` — first import
+  (`New: 3`), identical re-import (`Unchanged: 3`), edited content
+  (`Changed: 1 / Unchanged: 2`), moved content sharing a copy
+  (`Duplicate: 1 / Unchanged: 1`, `refCount 2` on one physical file), partial
+  archive (`Changed: 1 / Unchanged: 1` with unrelated material intact), and a
+  corrupt ZIP failing cleanly with `Import failed: Invalid ZIP archive …
+  Processed before failure: 0`. DB pulled with its WAL and inspected as
+  `user_version 3`: `source_files` refCounts exact, `academic_files`
+  `source_file_id`s non-NULL, and `files/source/` holding exactly the three
+  referenced copies (auto-cleaned orphan from the changed edit). The
   CE_Test AVD uses a `<temp>` data partition (wiped on reboot) and needed
   its ROM memory raised (`-memory 3072`) plus TalkBack/SwitchAccess and
   `settings.intelligence` disabled to stop System UI ANRs. Use the Golden
