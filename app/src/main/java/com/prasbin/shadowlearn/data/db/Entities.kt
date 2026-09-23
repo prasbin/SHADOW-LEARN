@@ -107,6 +107,88 @@ data class SourceFile(
     val createdAt: Long = System.currentTimeMillis()
 )
 
+/** Extraction lifecycle of one [AcademicFile] (one row per file). */
+enum class ExtractionStatus {
+    /** Extraction succeeded (may legitimately be an empty document, 0 chunks). */
+    EXTRACTED,
+    /** Extraction was attempted and failed; the error is recorded. */
+    FAILED
+}
+
+/**
+ * Phase 4 extraction metadata: one row per [AcademicFile].
+ *
+ * [sha256] is the content hash at extraction time — the incremental
+ * no-re-extract key: an [EXTRACTED] row whose [sha256] matches the current
+ * [AcademicFile.sha256] is never re-extracted (see docs/ARCHITECTURE.md).
+ * A [FAILED] row with a matching hash is retried on the next pass (honest
+ * failure isolation, no artificial success).
+ *
+ * Extracted text itself never lives here; it is split into
+ * [DocumentChunk]s (with page/slide references where available).
+ */
+@Entity(
+    tableName = "extraction_meta",
+    foreignKeys = [
+        ForeignKey(
+            entity = AcademicFile::class,
+            parentColumns = ["id"],
+            childColumns = ["academicFileId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ]
+)
+data class ExtractionMeta(
+    @PrimaryKey val academicFileId: Long,
+    /** SHA-256 at extraction time (incremental skip / reuse key). */
+    val sha256: String,
+    /** [ExtractionStatus] name. */
+    val status: String,
+    /** Extractor that produced this result, e.g. "pdf", "docx", "txt". */
+    val format: String,
+    val charCount: Long,
+    val chunkCount: Int,
+    val error: String? = null,
+    val startedAt: Long = System.currentTimeMillis(),
+    val completedAt: Long? = null
+)
+
+/**
+ * Phase 4 document chunk: one row per extractable unit of text from an
+ * [AcademicFile]. Chunk granularity is one per page/slide where the format
+ * provides them, split at [TextChunker.MAX_CHUNK_CHARS] (word boundaries)
+ * when a single page/slide is too long.
+ *
+ * The chunk keeps [AcademicFile] traceability and an optional stable
+ * [pageNumber] / slide reference. The same text is mirrored into the FTS
+ * virtual index table (`document_fts`, rowid == this table's [id]) — see
+ * `data/search/FtsIndex.kt`. Deleting a file cascades here (Room FK); the
+ * FTS mirror is cleaned together with chunk deletion on re-extraction.
+ */
+@Entity(
+    tableName = "document_chunks",
+    foreignKeys = [
+        ForeignKey(
+            entity = AcademicFile::class,
+            parentColumns = ["id"],
+            childColumns = ["academicFileId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("academicFileId"), Index("chunkIndex")]
+)
+data class DocumentChunk(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val academicFileId: Long,
+    /** Deterministic 0-based order within the file. */
+    val chunkIndex: Int,
+    /** Page (PDF) or slide (PPTX) reference where realistically available, else null. */
+    val pageNumber: Long? = null,
+    val text: String,
+    val charCount: Int,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
 /**
  * A file attached to a week (lecture / tutorial / workshop material).
  *

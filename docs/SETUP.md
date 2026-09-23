@@ -1,4 +1,4 @@
-# Setup & Build — SHADOW LEARN (Phase 3)
+# Setup & Build — SHADOW LEARN (Phase 4)
 
 ## 1. Requirements (exact)
 
@@ -22,6 +22,11 @@ $env:GRADLE_USER_HOME = "E:\Desktop\AGENTS-UP v2.0\.gradle-home"
 on 2026-09-22 and shrinking — C: must not take build artifacts).
 (Optional, persistent: set both as user env vars via Windows Settings.)
 
+`app/build.gradle.kts` also adds `testImplementation
+"org.xerial:sqlite-jdbc:3.41.2.2"` (JVM SQLite incl. FTS5 for the
+`FtsIndex` unit tests); it is a **test-only** dependency — the APK has no
+new runtime libraries.
+
 Why AGP 8.13.2, not 9.x: 8.13.x is the latest stable 8.x line, pairs with
 Gradle 8.13, and builds `compileSdk 36` with the locally installed
 platform + build-tools 36.1.0. `android.suppressUnsupportedCompileSdk=36`
@@ -44,7 +49,7 @@ E:\Desktop\AGENTS-UP` v2.0\.tools\gradle-8.13\bin\gradle.bat wrapper --gradle-ve
 ```powershell
 .\gradlew.bat assembleDebug          # APK: app\build\outputs\apk\debug\app-debug.apk
 .\gradlew.bat testDebugUnitTest      # unit tests (Robolectric Room tests included)
-.\gradlew.bat testDebugUnitTest assembleDebug   # full Phase 3 check (51 tests)
+.\gradlew.bat testDebugUnitTest assembleDebug   # full Phase 4 check (75 tests)
 .\gradlew.bat :app:installDebug      # needs a device/emulator on adb
 ```
 
@@ -83,4 +88,29 @@ E:\Desktop\AGENTS-UP` v2.0\.tools\gradle-8.13\bin\gradle.bat wrapper --gradle-ve
   its ROM memory raised (`-memory 3072`) plus TalkBack/SwitchAccess and
   `settings.intelligence` disabled to stop System UI ANRs. Use the Golden
   path with 3 GB+ when repeating.
+- Phase 4 emulator session (2026-09-23, same AVD): installed the v4 build
+  **over** the phase-3 data — the on-device 3→4 migration preserved every
+  pre-existing academic row and created `document_chunks`/`extraction_meta`
+  (`user_version 4` verified). Imported `phase4.zip` (a `Study.zip` module
+  with a real 2-page PDF, `.docx`, `.pptx`, `.txt`, a garbage PDF, and an
+  OLE `.doc`) → 5 files EXTRACTED (8 chunks; PDF=1 chunk per page, PPTX=1
+  per slide), others FAILED *honestly* (`Not a valid PDF: no objects
+  found.`, `Legacy/unsupported binary format (doc)`). Live-on-device
+  (rooted) `sqlite3` on the app DB is the reliable inspection path — Room
+  uses WAL, so pulling only the `.db` file gives a stale snapshot; pulling
+  requires `adb root` + `cp`/`pull`, and PowerShell redirect must not be
+  used on `adb exec-out` binaries (it applies CRLF translation). FTS
+  verification: `SELECT rowid, text FROM document_fts WHERE document_fts
+  MATCH 'optimization|backpropagation|gradient'` matched exactly the
+  expected chunk rowids. Re-importing `phase4-v2.zip` (edited PDF)
+  → `Changed: 1`, `Extracted: 1`, `Skipped (unchanged): 4`; the edited
+  file's stale chunk/FTS rows were replaced with new ones (rowids 9,10;
+  `MATCH 'forward'` hits only the new text). Device-found bugs fixed
+  before wrap-up: Android `DocumentBuilderFactory` rejects Apache XXE
+  features (now applied best-effort, `runCatching`, with
+  `setExpandEntityReferences(false)` masked) and PDF object-skip (off-by-one
+  at EOF — `start < lastStreamEnd`). FTS on a real device: FTS5 absent,
+  FTS4 present with NO `rank` column → `FtsIndex.search` catches and
+  retries an unranked `MATCH` (exercised both in tests and on device); see
+  `docs/ARCHITECTURE.md` § Extraction & FTS indexing.
 - **REAL DEVICE TESTING: NOT YET PERFORMED.**

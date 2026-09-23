@@ -105,6 +105,9 @@ dependencies {
     testImplementation("androidx.test:core:1.6.1")
     testImplementation("androidx.room:room-testing:$roomVersion")
     testImplementation("org.robolectric:robolectric:4.14.1")
+    // Real FTS5 module for unit tests (already present in the offline cache).
+    // Production code never links it; only test classes use it.
+    testImplementation("org.xerial:sqlite-jdbc:3.41.2.2")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

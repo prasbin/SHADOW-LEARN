@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -71,9 +72,10 @@ class MigrationTest {
         // --- open with the current DB (AutoMigrations 1→2→3 apply) ----------
         val db = Room.databaseBuilder(context, ShadowLearnDatabase::class.java, "migtest1.db")
             .allowMainThreadQueries()
+            .addMigrations(ShadowLearnDatabase.MIGRATION_3_4)
             .build()
         try {
-            assertEquals(3, db.openHelper.readableDatabase.version)
+            assertEquals(4, db.openHelper.readableDatabase.version)
             val dao = db.academicDao()
             runBlocking {
                 assertEquals(listOf("Year 2"), dao.getYears().map { it.name })
@@ -115,9 +117,10 @@ class MigrationTest {
         // --- open with the current DB (AutoMigration 2→3 applies) ----------
         val db = Room.databaseBuilder(context, ShadowLearnDatabase::class.java, "migtest2.db")
             .allowMainThreadQueries()
+            .addMigrations(ShadowLearnDatabase.MIGRATION_3_4)
             .build()
         try {
-            assertEquals(3, db.openHelper.readableDatabase.version)
+            assertEquals(4, db.openHelper.readableDatabase.version)
             val dao = db.academicDao()
             runBlocking {
                 assertEquals(listOf("Year 2"), dao.getYears().map { it.name })
@@ -127,6 +130,53 @@ class MigrationTest {
                 // New v3 column defaults to NULL; content table starts empty.
                 assertEquals(null, file.sourceFileId)
                 assertEquals(0, dao.getContentCount())
+            }
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun migrate3ToCurrent_preservesRowsAndAddsPhase4Tables() {
+        val dbFile = context.getDatabasePath("migtest3.db")
+        buildVersionedDb(dbFile, 3)
+
+        // v3 rows (content-identity columns present).
+        val raw = android.database.sqlite.SQLiteDatabase.openOrCreateDatabase(dbFile, null)
+        raw.execSQL("INSERT INTO academic_years (id, name, sortOrder) VALUES (1, 'Year 2', 2)")
+        raw.execSQL("INSERT INTO semesters (id, yearId, name, sortOrder) VALUES (1, 1, 'Semester 1', 1)")
+        raw.execSQL("INSERT INTO modules (id, semesterId, name, code) VALUES (1, 1, 'Artificial Intelligence', NULL)")
+        raw.execSQL("INSERT INTO weeks (id, moduleId, weekNumber, title) VALUES (1, 1, 2, 'Week 2')")
+        raw.execSQL(
+            "INSERT INTO source_files (id, sha256, storedPath, fileSize, refCount, createdAt) " +
+                "VALUES (1, 'deadbeef', '/data/.../source/deadbeef', 10, 1, 1)"
+        )
+        raw.execSQL(
+            "INSERT INTO academic_files (id, weekId, fileName, filePath, fileType, sha256, classType, " +
+                "relativePath, fileSize, lastModified, indexed, createdAt, updatedAt, sourceFileId) " +
+                "VALUES (1, 1, 'slides.pdf', '/data/.../source/deadbeef', 'pdf', 'deadbeef', " +
+                "'LECTURE', 'AI.zip/Week 2/Lecture/slides.pdf', 10, 5, 0, 1, 2, 1)"
+        )
+        raw.close()
+
+        // --- open with the current DB: AutoMigration 3→... + manual MIGRATION_3_4 ---
+        val db = Room.databaseBuilder(context, ShadowLearnDatabase::class.java, "migtest3.db")
+            .allowMainThreadQueries()
+            .addMigrations(ShadowLearnDatabase.MIGRATION_3_4)
+            .build()
+        try {
+            assertEquals(4, db.openHelper.readableDatabase.version)
+            val dao = db.academicDao()
+            val extractionDao = db.extractionDao()
+            runBlocking {
+                val file = dao.findFileByHash("deadbeef")!!
+                assertEquals("LECTURE", file.classType)
+                assertEquals(1L, file.sourceFileId)
+                assertEquals(1, dao.getContentCount())
+                // Phase 4 tables exist, empty, and queryable.
+                assertNull(extractionDao.getMeta(file.id))
+                assertEquals(0, extractionDao.chunkCountForFile(file.id))
+                assertEquals(listOf(file.id), extractionDao.filesOfSemester(1).map { it.id })
             }
         } finally {
             db.close()

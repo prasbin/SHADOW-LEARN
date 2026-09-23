@@ -1,5 +1,12 @@
 # Architecture — SHADOW LEARN
 
+> **UI identity requirement (project-wide):** the app must keep its original
+> dark, futuristic academic RPG/"SYSTEM" interface (inspired by the web
+> novel/comic *Solo Leveling*'s SYSTEM concept as a *general design
+> reference only*). No copyrighted artwork, characters, names, or
+> screenshots from any franchise may be used. This applies to every UI
+> phase, including search/browse screens.
+
 ## Stack
 
 Native Kotlin. Single `:app` module by design — feature modules
@@ -19,13 +26,15 @@ com.prasbin.shadowlearn
 │   └── ingest/             # IngestViewModel (academic context + import state)
 ├── data/
 │   ├── AppContainer        # minimal service locator (no DI framework yet)
-│   ├── db/                 # Room entities, AcademicDao, ShadowLearnDatabase
-│   ├── ingest/             # IngestFormat, ZipWalk, HierarchyPlan, IngestRepository
+│   ├── db/                 # Room entities, AcademicDao, ExtractionDao, ShadowLearnDatabase
+│   ├── extract/            # PlainText / OOXML / PDF extractors, TextChunker
+│   ├── search/             # FtsIndex (FTS5→FTS4 auto-fallback) + SqlExecutor seam
+│   ├── ingest/             # IngestFormat, ZipWalk, HierarchyPlan, IngestRepository, ExtractionRepository
 │   └── settings/           # SettingsRepository (DataStore)
 └── util/                   # formatBytes (unit-tested)
 ```
 
-## Database (v3)
+## Database (v4)
 
 Tables: `academic_years` → `semesters` → `modules` → `weeks` →
 `academic_files`, all with `CASCADE` deletes and FK indices.
@@ -47,7 +56,23 @@ Phase 3 reconciliation engine:
 - `refCount` is recomputed from `academic_files` after every import, then
   zero-ref rows and their physical files are deleted.
 
-Future tables (chunks, pages/slides, topics, quizzes, cards, transcripts,
+v4 adds the Phase 4 extraction model:
+
+- `document_chunks`, the consumer-facing document unit (Phase 9 flashcard
+  cards and Phase 5 quiz materials operate on these). Columns:
+  `id` (autoincrement — this is the FTS rowid), `academicFileId` (FK,
+  `CASCADE`), `chunkIndex`, nullable `pageNumber`, `text`, `charCount`,
+  `createdAt`; indices on `(academicFileId, chunkIndex)`.
+- `extraction_meta`, one row per file's last extraction attempt:
+  `academicFileId` (PK + FK `CASCADE`), `sha256`, `status`
+  (`EXTRACTED` / `FAILED`), `format` (`pdf`/`docx`/`pptx`/`txt`/`unknown`),
+  `charCount`, `chunkCount`, nullable `error`, `startedAt`, `completedAt`.
+- The full-text `document_fts` virtual table is **not** in Room's schema
+  (it is not an entity): `FtsIndex` creates it on first use against the
+  live SQLite engine, so Room validation never sees a non-entity virtual
+  table. FTS rowid == `document_chunks.id`.
+
+Future tables (pages/slides, topics, quizzes, cards, transcripts,
 progress, similarity) reference these primary keys — no destructive
 redesign planned.
 
@@ -59,13 +84,21 @@ redesign planned.
   `fallbackToDestructiveMigration()` is **banned** — a missing migration
   must fail loudly, never wipe academic data.
 - `exportSchema = true`; schemas committed under `app/schemas/`
-  (`1.json`, `2.json`, `3.json`).
+  (`1.json`, `2.json`, `3.json`, `4.json`).
+- v3→v4 is a **manual** `MIGRATION_3_4` (`document_chunks` +
+  `extraction_meta` + two indices) with DDL copied verbatim from the Room
+ ‑exported `4.json`/`3.json`, registered in the builder, and covered by a
+  dedicated `migrate3ToCurrent` test that seeds a real v3 DB (from the
+  committed `3.json`), inserts hierarchy + source columns, opens it under
+  the current version, and asserts rows survive and extraction tables are
+  empty/queryable.
 - Migration tests: `DatabaseTest` asserts the current baseline
-  (`schemaVersion_isThree`); `MigrationTest` drives the real v1→current and
-  v2→current paths with `MigrationTestHelper` using the committed `1.json`
-  and `2.json` schemas — including the manual v1 `createSql` variant (which
-  contains a `${TABLE_NAME}` placeholder the helper cannot substitute) — and
-  asserts rows survive and v3 columns default correctly.
+  (`schemaVersion_isFour`); `MigrationTest` drives the real v1→current,
+  v2→current, and v3→current paths with `MigrationTestHelper` using the
+  committed `1..4.json` schemas — including the manual v1 `createSql`
+  variant (which contains a `${TABLE_NAME}` placeholder the helper cannot
+  substitute) — and asserts rows survive and later columns default
+  correctly.
 
 ## Import pipeline (Phases 2–3)
 
@@ -160,7 +193,78 @@ Limitations (documented, accepted):
 
 Execution is a ViewModel-scoped IO coroutine, not WorkManager — imports are
 user-initiated foreground work needing live progress and cancellation.
-WorkManager stays available for Phase 4+ indexing.
+Extraction runs in the same coroutine after each successful reconcile and is
+incremental, so work is proportional to changed/new files. WorkManager stays
+available for future background indexing (Phase 7+).
+
+## Extraction & FTS indexing (Phase 4)
+
+**Extractors** (`data/extract/`) are hand-rolled, dependency-light codecs for
+the formats the target audience needs most; no Apache POI / PDFBox / Tika
+(their JARs are multi-MB, drag the package past 30 MB, and PDFBox needs a
+large font-package for real PDF text anyway):
+
+- `PlainTextExtractor` — UTF-8 text (chatgpt-style PST), guarded by max-size.
+- `OoxmlTextExtractor` — Office Open XML via `ZipFile`: `word/document.xml`,
+  `ppt/slides/slide*.xml` (each slide = its own chunk, gets a pageNumber),
+  and `word/document.xml` page break detection (`w:br w:type="page"` +
+  `<w:p>` before it) splits documents by page. One ZIP read per part (seek
+  back to `PPTX_SLIDE_OFFSET` per slide); no DOM retention.
+- `PdfTextExtractor` — an explicit (spec-literal) PDF object walker:
+  consecutive objects at the same xref offset → cross-reference "stub"
+  objects collapsed so pages resolve to the content stream that flushes
+  them (`Invalid PDF: cross-reference tables split a content stream.`). Content
+  streams are un-FlateDecoded (replacing `FlateDecode` with `FlateDecode
+  /DecodeParms <</Columns 256/Predictor 12>>` as needed) and decompressed
+  with `java.util.zip`, `Tj`/`TJ`/`'`/`"` string operands concatenated,
+  hex `<>` re-encoded, duplicate `(…)` dropped, page breaks emitted on each
+  `BT` after the first. Errors are honest: `Not a valid PDF: no objects
+  found.` for garbage / truncated files, `Legacy/unsupported binary format
+  (doc): not supported.` for OLE .doc/.ppt | `.rtf` run (you still get
+  proper .docx/.pptx).
+- `TextChunker` — 512-char soft-window segments (a single huge PDF keeps
+  its long token, one docx page-break section may be one token).
+
+**Extraction schedule (`ExtractionRepository`)** — after import, per file
+with a stored local copy, matched on `sha256`:
+
+1. `EXTRACTED` **and same sha256** → **SKIPPED** (unchanged; no re-extract,
+   no chunk rewrites; honest `Skipped (unchanged)`).
+2. Otherwise → (re)extract: `document_chunks` rows and their FTS rows for
+   that file are deleted (handling the *changed* case — stale chunks must
+   leave the index), then all chunks are re-inserted in one transaction
+   (`replaceExtraction`), then `FtsIndex.upsertChunks` drains the new rows
+   into FTS in the same transaction. Failure anywhere records
+   `FAILED` + a human `error`, keeps the file's old chunks if it previously
+   extracted (deduped re-attempts don't duplicate content), and never fails
+   the import. Sibling files are isolated from each other (per-file
+   try/catch) — one bad PDF can't block the semester.
+
+**FTS (`data/search/FtsIndex`)** — a single dependency-free index that
+probes which `FTS5` extension the running SQLite actually compiled in and
+falls back to a `FTS4` virtual table (`CREATE VIRTUAL TABLE document_fts
+USING fts5(text)` → `USING fts4(text)`). Notes:
+
+- Device established SQLite **without FTS5** and **with FTS4**; tests run
+  on the JVM `sqlite-jdbc` (FTS5 available) *and* Robolectric uses the
+  same in-memory engine as Robolectric's bundled SQLite (FTS4, no FTS5, no
+  `rank`) — so the fallback is exercised in test *and* in the app.
+- FTS4's `rank` is **not** available here (`no such column: rank`), so
+  `search()` tries the ranked statement and, on any exception, re-issues an
+  unranked `WHERE document_fts MATCH ?` (`SEARCH_UNRANKED_SQL`). ORDER-BYS
+  are best-effort; ordering/BM25 is deferred to the Phase 5 search layer.
+- `FtsHit` = `(rowid, text)`; rowids are the autoincrement
+  `document_chunks` ids, so hits resolve to chunks and `academicFiles` via
+  plain Room joins.
+- Because the FTS rowids are the chunk PKs and stale rows are deleted with
+  their chunks, incremental re-extraction keeps the index exact (device:
+  changed PDF re-extract dropped rowids 2,3 and re-indexed 9,10;
+  `MATCH 'forward'` hit only the new content).
+
+**Interface rule:** the search & browse UI coming in Phase 5 must keep the
+dark futuristic SYSTEM identity (see top note); the app has no
+`ACTION_VIEW`/`ACTION_SEND` intent filter, so imports go through the in-app
+SAF picker only.
 
 ## Emulator finding: backslash separators
 

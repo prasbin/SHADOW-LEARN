@@ -10,6 +10,8 @@ import com.prasbin.shadowlearn.data.AppContainer
 import com.prasbin.shadowlearn.data.db.AcademicYear
 import com.prasbin.shadowlearn.data.db.Module
 import com.prasbin.shadowlearn.data.db.Semester
+import com.prasbin.shadowlearn.data.ingest.ExtractionRepository
+import com.prasbin.shadowlearn.data.ingest.ExtractionState
 import com.prasbin.shadowlearn.data.ingest.IngestRepository
 import com.prasbin.shadowlearn.data.ingest.IngestState
 import kotlinx.coroutines.flow.Flow
@@ -23,7 +25,8 @@ data class IngestScreenState(
     val years: List<AcademicYear> = emptyList(),
     val currentYearId: Long? = null,
     val currentSemesterId: Long? = null,
-    val ingest: IngestState = IngestState.Idle
+    val ingest: IngestState = IngestState.Idle,
+    val extraction: ExtractionState = ExtractionState.Idle
 )
 
 /**
@@ -36,6 +39,7 @@ class IngestViewModel(context: Context) : ViewModel() {
     private val dao = AppContainer.dao(app)
     private val settings = AppContainer.settings(app)
     private val repo = IngestRepository(app, dao)
+    private val extraction = AppContainer.extraction(app)
 
     fun semestersOf(yearId: Long): Flow<List<Semester>> = dao.observeSemesters(yearId)
     fun modulesOf(semesterId: Long): Flow<List<Module>> = dao.observeModules(semesterId)
@@ -46,9 +50,10 @@ class IngestViewModel(context: Context) : ViewModel() {
         dao.observeYears(),
         settings.currentYearId,
         settings.currentSemesterId,
-        repo.state
-    ) { years, yearId, semesterId, ingest ->
-        IngestScreenState(years, yearId, semesterId, ingest)
+        repo.state,
+        extraction.state
+    ) { years, yearId, semesterId, ingest, extraction ->
+        IngestScreenState(years, yearId, semesterId, ingest, extraction)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), IngestScreenState())
 
     fun semestersFlow(yearId: Long?): Flow<List<Semester>> =
@@ -67,7 +72,13 @@ class IngestViewModel(context: Context) : ViewModel() {
     }
 
     fun importZip(uri: Uri, semesterId: Long, label: String) {
-        viewModelScope.launch { repo.import(uri, semesterId, label) }
+        viewModelScope.launch {
+            repo.import(uri, semesterId, label)
+            // Phase 4: index the semester corpus once storage completed cleanly.
+            if (repo.state.value is IngestState.Done) {
+                extraction.processForSemester(semesterId)
+            }
+        }
     }
 
     fun cancelImport() = repo.cancel()

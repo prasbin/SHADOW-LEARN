@@ -17,7 +17,7 @@ import org.robolectric.annotation.Config
 /**
  * Phase 1 database tests (local JVM via Robolectric):
  * creation, hierarchy insert/retrieve, hash lookup, cascade delete,
- * and schema-version assertion (migration infrastructure, v3 baseline).
+ * and schema-version assertion (migration infrastructure, v4 baseline).
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35]) // Highest API Robolectric 4.14.1 supports; app targets 36 — fine for DB tests.
@@ -41,9 +41,9 @@ class DatabaseTest {
     }
 
     @Test
-    fun schemaVersion_isThree() {
-        assertEquals(3, ShadowLearnDatabase.DATABASE_VERSION)
-        assertEquals(3, db.openHelper.readableDatabase.version)
+    fun schemaVersion_isFour() {
+        assertEquals(4, ShadowLearnDatabase.DATABASE_VERSION)
+        assertEquals(4, db.openHelper.readableDatabase.version)
     }
 
     @Test

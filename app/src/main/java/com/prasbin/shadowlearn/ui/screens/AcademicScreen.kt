@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.prasbin.shadowlearn.data.ingest.ExtractionState
 import com.prasbin.shadowlearn.data.ingest.IngestState
 import com.prasbin.shadowlearn.ui.components.SectionCard
 import com.prasbin.shadowlearn.ui.components.StatRow
@@ -41,8 +42,8 @@ private data class PickedZip(val uri: Uri, val name: String, val size: Long)
 
 /**
  * Phase 2 Academic tab: Year/Semester context, SAF ZIP picker, import with
- * honest progress, result/error summary, and the ingested hierarchy browser.
- * No extraction, search, or sync logic lives here (Phases 3+).
+ * honest progress, result/error summary, Phase 4 extraction/indexing status,
+ * and the ingested hierarchy browser. No search or sync logic lives here.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -122,6 +123,7 @@ fun AcademicScreen() {
                     Text("Select a year and semester first (Settings tab can create them).")
                 }
                 ImportStatus(s.ingest)
+                ExtractionStatus(s.extraction)
             }
         }
 
@@ -216,6 +218,31 @@ private fun ErrorList(errors: List<String>) {
     Text("Notes (${errors.size}):", style = MaterialTheme.typography.titleMedium)
     errors.take(20).forEach { Text("• $it", style = MaterialTheme.typography.bodyMedium) }
     if (errors.size > 20) Text("…and ${errors.size - 20} more.")
+}
+
+/** Phase 4 extraction/indexing status shown under the import card. */
+@Composable
+private fun ExtractionStatus(state: ExtractionState) {
+    when (state) {
+        is ExtractionState.Idle -> Unit
+        is ExtractionState.Progress -> {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
+            Text("Indexing…", style = MaterialTheme.typography.titleSmall)
+            StatRow("Processing", state.currentEntry)
+            StatRow("Files", "${state.done} / ${state.total}")
+        }
+        is ExtractionState.Done -> {
+            val r = state.summary
+            Text("Extraction", style = MaterialTheme.typography.titleSmall)
+            StatRow("Extracted", r.extracted.toString())
+            StatRow("Reused (duplicates)", r.reused.toString())
+            StatRow("Skipped (unchanged)", r.skipped.toString())
+            StatRow("Failed", r.failed.toString())
+            StatRow("Chunks indexed", r.indexedChunks.toString())
+            if (r.elapsedMs > 0) StatRow("Elapsed", "${r.elapsedMs} ms")
+            ErrorList(r.errors)
+        }
+    }
 }
 
 /** Modules → weeks → files for the selected semester, read live from Room. */
