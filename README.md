@@ -5,10 +5,11 @@ Personal offline-first university learning OS (native Android).
 - Package: `com.prasbin.shadowlearn`
 - UI: Jetpack Compose (Material 3, dark futuristic theme)
 - Data: Room (SQLite) + DataStore + Storage Access Framework
-- Status: **Phase 4 — extraction pipeline & full-text index.** Text,
+- Status: **Phase 5 — academic search UI + relevance ranking.** Text,
   OOXML/.docx/.pptx, and PDF extraction with per-file, per-page chunks and
-  an incremental FTS index (FTS5 auto-falls back to FTS4). No AI,
-  quizzes, Listener Mode, or similarity checking yet (Phase 5+).
+  an incremental FTS index (FTS5 auto-falls back to FTS4), plus a fast,
+  honest search experience over the current semester. No AI, quizzes,
+  Listener Mode, or similarity checking yet (Phase 6+).
 
 ## Features (Phase 3)
 
@@ -56,26 +57,66 @@ Personal offline-first university learning OS (native Android).
   `extraction_meta` rows, `document_chunks` with pageNumber, and
   `SELECT … FROM document_fts WHERE document_fts MATCH '…'` hit counts.
 
+## Features (Phase 5)
+
+- **Academic search, fully local.** A dedicated Search tab over the FTS
+  index (same `FtsIndex` abstraction from Phase 4, so FTS5 *and* the
+  production FTS4 path are both exercised).
+  - Query sanitization (`SearchQuery`) — lowercase, dedupe, cap 8 terms ×
+    64 chars, keep only `\p{L}\p{N}` letters; output is always
+    space-separated *prefix* terms (`gradient* descent*`). A trailing `*`
+    on every term doubles as injection defense: reserved FTS operator
+    words (`or`, `and`, `not`) can never be parsed as operators.
+  - Implicit-AND handling that works on every engine: the Android
+    framework SQLite (API 36, verified on device) does **not** treat a
+    bare `AND` keyword as an operator (it matches the literal word
+    “and”), so the expression form deliberately stays FTS4's
+    space-implicit AND — identical results on real FTS5 too.
+  - Deterministic **“SHADOW LEARN heuristic relevance”**
+    (`RelevanceScorer`): `(100·coverage + 12·exact + 6·prefix +
+    80·fileNameHit + 30·moduleHit) / (1 + ln(1+len)/10)`. Long chunks are
+    normalized; ties break `score ↓ → fileName ↑ → chunkId ↑`.
+  - Spring-scoped results (`SearchDao.resolveChunks` joins chunk → file →
+    module → semester in one query): searching never crosses into another
+    semester's material, and the scope headline (“Year 2 · Semester 1”)
+    tracks the Settings tab live, re-running the query on change.
+  - Excerpts with highlight offsets generator (`ExcerptGenerator`): a
+    60-char lead-in + 100-char window around the first hit, collapsed
+    whitespace, sanitized control characters, bounded merged highlight
+    ranges so the UI can render matches bold.
+  - Honest UI states: EMPTY / NO_SEMESTER / NO_INDEXED / SEARCHING /
+    RESULTS / NO_RESULTS / ERROR — a query in a semester with no indexed
+    content says exactly that.
+- Search UI in the dark futuristic SYSTEM identity: result cards with
+  type chips (PDF/PPTX/DOCX/TXT), `PAGE n` / `SLIDE n` refs, highlighted
+  excerpt, relative relevance bar, tap-to-open detail dialog, and a clear
+  (×) button.
+
 ## Build
 
 Requirements and exact commands: see [docs/SETUP.md](docs/SETUP.md).
 Architecture and database / ingest / extraction pipeline: see
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-Status-line: `.\gradlew.bat testDebugUnitTest assembleDebug` (**75 unit
+Status-line: `.\gradlew.bat testDebugUnitTest assembleDebug` (**127 unit
 tests**, including Robolectric Room migrations + end-to-end ingest,
-reconciliation, and extraction tests).
+reconciliation, extraction, and Search over a real FTS4 index).
 
 ## Testing status
 
-- **75 unit tests green**: format rules, walk/plan (nesting, wrappers,
+- **127 unit tests green**: format rules, walk/plan (nesting, wrappers,
   empty folders, duplicates, unsafe paths, backslash archives),
   deterministic `Reconcile.classify` table, extractor codecs (txt/docx/
   pptx/pdf incl. garbage + truncated + legacy-binary inputs),
   incremental `ExtractionRepository` semantics (skip/change/fail),
   Robolectric Room migrations (v1→v4, v2→v4, v3→v4 against committed
   schemas), FtsIndex (FTS5 and FTS4 fallback paths), and end-to-end ingest
-  runs with real ZIP bytes.
+  runs with real ZIP bytes. Phase 5 adds 52 tests: query parsing/
+  sanitization, heuristic scoring determinism, excerpt generation, and
+  `SearchRepository` end-to-end against a real in-memory FTS4 index
+  (scoring order, ties, scope isolation, page/slide refs, no-indexed
+  reporting) plus FTS5-path tests (mult-term implicit AND and injection
+  sanitization on real sqlite-jdbc FTS5).
 - **Emulator verification performed** (`CE_Test`, API 36): a fresh v4
   install seeded Year 2 / Semester 1 and the full incremental session was
   driven end-to-end via SAF — imports reconciled; extraction produced
@@ -89,16 +130,33 @@ reconciliation, and extraction tests).
   rejecting Apache XXE features → best-effort feature application; PDF
   object-skip off-by-one at EOF; missing `/Filter /FlateDecode` in the
   test fixtures → extractor is spec-correct, fixtures fixed.)
+- **Emulator verification performed — Phase 5 Search** (`CE_Test`,
+  API 36): Search tab renders in the SYSTEM identity; query “gradient”
+  returned 3 results ranked ai.pptx › neural.pdf › readme.txt with type
+  chips, `PAGE/SLIDE` refs, highlighted excerpts, relevance indicators
+  and a working detail dialog; nonexistent terms show an honest
+  “No results” state; switching semester in Settings live-switched the
+  scope headline and produced the correct NO_INDEXED state for the empty
+  semester (repo-scope, never cross-semester results); adb text-input
+  swallowing quarantined the dex/query typing but the production query
+  path was exercised directly against the device index: `forward*
+  network*` (implicit AND, the exact sanitized expression) hits only the
+  PDF chunk containing both terms, `print*` hits the `.py` chunk, and
+  single prefixes behave identically. ALSO verified on device: this
+  Android build's FTS4 parses bare `OR`/`NOT`/`NEAR` and space-implicit
+  AND but **not** a bare `AND` keyword — hence the expression form.
 - **REAL DEVICE TESTING: NOT YET PERFORMED.**
 
 ## Current limitations
 
 - XP / level / streak / progress are honest zeros until the Phase 6 engine.
 - Export / Import of saved archives is not yet implemented.
-- Quiz, Cards, Search, Listen tabs remain placeholders.
-- FTS4 has no `rank` column on this platform, so Phase 5 ordering must
-  compute its own relevance (rowid order today).
+- Quiz, Cards, Listen tabs remain placeholders.
+- Search covers the current semester's indexed *chunks* only; unindexed
+  file types (`.rtf`, OLE `.doc`, garbage files) are explained per file by
+  the extraction metadata and never silently “match nothing”.
 
 ## Next
 
-Phase 5 — AI-powered search UI on the chunk index + ranking.
+Phase 6 — quiz engine (MCQ / short answer / code / scenario) with XP,
+streaks, and weak-area tracking.

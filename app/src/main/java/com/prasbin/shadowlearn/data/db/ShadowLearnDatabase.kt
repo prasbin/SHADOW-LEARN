@@ -59,6 +59,8 @@ abstract class ShadowLearnDatabase : RoomDatabase() {
 
     abstract fun extractionDao(): ExtractionDao
 
+    abstract fun searchDao(): SearchDao
+
     companion object {
         const val DATABASE_VERSION = 4
         const val DATABASE_NAME = "shadowlearn.db"

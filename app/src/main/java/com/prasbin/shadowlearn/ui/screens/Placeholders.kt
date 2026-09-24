@@ -27,11 +27,6 @@ private fun ComingSoon(title: String, phase: String, body: String) {
     }
 }
 
-@Composable fun SearchScreen() = ComingSoon(
-    "AI Search", "Phase 5",
-    "Ask which week/module covers a topic. Retrieval over your uploaded material — never invented locations."
-)
-
 @Composable fun QuizScreen() = ComingSoon(
     "Daily Quiz", "Phase 6",
     "MCQs, short answers, coding and scenario questions from your content, with XP, streaks and weak-area tracking."

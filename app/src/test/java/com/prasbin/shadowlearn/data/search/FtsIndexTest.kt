@@ -99,4 +99,36 @@ class FtsIndexTest {
         assertEquals(r1.map { it.first }, r2.map { it.first })
         assertTrue(r2.any { it.first == 11L && it.second.contains("gamma") })
     }
+
+    /**
+     * Phase 5 query layer against REAL FTS5 (sqlite-jdbc): the sanitized
+     * prefix expression produced by SearchQuery must behave identically on
+     * the FTS5 module production prefers when available.
+     */
+    @Test
+    fun fts5_multiTermPrefixExpressionIsAnd() {
+        val a = FtsIndex(jdbcExecutor)
+        a.insert(1, "gradient descent methods")
+        a.insert(2, "gradient only here")
+        a.insert(3, "descent methods only")
+
+        val andExpr = SearchQuery.parse("gradient descent").toMatchExpression()
+        assertEquals("gradient* descent*", andExpr)
+        // Space = implicit AND: only chunk 1 contains BOTH. (chunk 3 lacks "gradient".)
+        assertEquals(listOf(1L), a.search(andExpr).map { it.chunkId })
+
+        val prefixExpr = SearchQuery.parse("grad desc").toMatchExpression()
+        assertEquals(1, a.search(prefixExpr).size)
+    }
+
+    @Test
+    fun fts5_sanitizedSpecialCharQueryStillMatches() {
+        val a = FtsIndex(jdbcExecutor)
+        a.insert(7, "neural networks or transformers")
+        a.insert(8, "cooking pasta")
+        // There must be no syntax risk in the sanitized expression.
+        val expr = SearchQuery.parse("neural!! (networks) \"*OR\"").toMatchExpression()
+        assertEquals("neural* networks* or*", expr)
+        assertEquals(listOf(7L), a.search(expr).map { it.chunkId })
+    }
 }

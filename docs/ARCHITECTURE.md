@@ -20,15 +20,16 @@ com.prasbin.shadowlearn
 ├── ui/
 │   ├── theme/              # dark futuristic Material 3 theme
 │   ├── components/         # SectionCard, StatRow
-│   ├── screens/            # Dashboard, Academic, Settings + 5 placeholders
+│   ├── screens/            # Dashboard, Academic, Settings, Search + 4 placeholders
 │   ├── dashboard/          # DashboardViewModel (DB counts + settings)
 │   ├── settings/           # SettingsViewModel (CRUD years/semesters, prefs)
+│   ├── search/             # SearchViewModel (debounce/flatMapLatest state machine)
 │   └── ingest/             # IngestViewModel (academic context + import state)
 ├── data/
 │   ├── AppContainer        # minimal service locator (no DI framework yet)
-│   ├── db/                 # Room entities, AcademicDao, ExtractionDao, ShadowLearnDatabase
+│   ├── db/                 # Room entities, AcademicDao, ExtractionDao, SearchDao, ShadowLearnDatabase
 │   ├── extract/            # PlainText / OOXML / PDF extractors, TextChunker
-│   ├── search/             # FtsIndex (FTS5→FTS4 auto-fallback) + SqlExecutor seam
+│   ├── search/             # SearchQuery, RelevanceScorer, ExcerptGenerator, SearchRepository, FtsIndex
 │   ├── ingest/             # IngestFormat, ZipWalk, HierarchyPlan, IngestRepository, ExtractionRepository
 │   └── settings/           # SettingsRepository (DataStore)
 └── util/                   # formatBytes (unit-tested)
@@ -59,7 +60,7 @@ Phase 3 reconciliation engine:
 v4 adds the Phase 4 extraction model:
 
 - `document_chunks`, the consumer-facing document unit (Phase 9 flashcard
-  cards and Phase 5 quiz materials operate on these). Columns:
+  cards and Phase 6 quiz materials operate on these). Columns:
   `id` (autoincrement — this is the FTS rowid), `academicFileId` (FK,
   `CASCADE`), `chunkIndex`, nullable `pageNumber`, `text`, `charCount`,
   `createdAt`; indices on `(academicFileId, chunkIndex)`.
@@ -252,7 +253,8 @@ USING fts5(text)` → `USING fts4(text)`). Notes:
 - FTS4's `rank` is **not** available here (`no such column: rank`), so
   `search()` tries the ranked statement and, on any exception, re-issues an
   unranked `WHERE document_fts MATCH ?` (`SEARCH_UNRANKED_SQL`). ORDER-BYS
-  are best-effort; ordering/BM25 is deferred to the Phase 5 search layer.
+  are best-effort in the index; the Phase 5 `SearchRepository` owns all
+  ranking above this seam.
 - `FtsHit` = `(rowid, text)`; rowids are the autoincrement
   `document_chunks` ids, so hits resolve to chunks and `academicFiles` via
   plain Room joins.
@@ -261,10 +263,62 @@ USING fts5(text)` → `USING fts4(text)`). Notes:
   changed PDF re-extract dropped rowids 2,3 and re-indexed 9,10;
   `MATCH 'forward'` hit only the new content).
 
-**Interface rule:** the search & browse UI coming in Phase 5 must keep the
-dark futuristic SYSTEM identity (see top note); the app has no
-`ACTION_VIEW`/`ACTION_SEND` intent filter, so imports go through the in-app
-SAF picker only.
+## Search (Phase 5)
+
+The Search tab binds the Phase 4 chunk index to a focused,
+spring-scoped, ranked result set. Everything is local; the query string
+never reaches a Matcher that a user could break.
+
+- **`SearchQuery`** — pure sanitization. Input is lowercased and split on
+  `[\p{L}\p{N}]+` (capped: 8 terms × 64 chars, deduped preserving order).
+  `toMatchExpression()` emits space-separated *prefix* terms, e.g.
+  `gradient descent` → `gradient* descent*`. Prefix form is deliberate:
+  - FTS4's implicit AND is the space operator — the Android framework
+    build (verified on device, API 36) parses a bare `AND` keyword **not**
+    as an operator but as a literal term (`risk AND return` matched only
+    a row containing the word “and”), while `or* network*`-style queries
+    AND correctly. The space form behaves identically on real FTS5.
+  - A trailing `*` on every term means user-typed `or` / `and` / `not`
+    can never collide with FTS operator keywords.
+- **`FtsIndex.search(expression)`** returns `(rowid, text)` hits (same
+  ranked→unranked fallback as extraction), cap 200 rows (`FETCH_LIMIT`).
+- **`SearchDao.resolveChunks(semesterId, ids)`** — a single metadata
+  JOIN (chunk → file → week → module → semester) returns `ChunkHitRow`
+  (file name/type/path, class, page/slide, module, week, charCount).
+  The `WHERE semesterId = ?` clause is the *scope guarantee*: results
+  can never cross into another semester. `indexedChunkCount(semesterId)`
+  / `observeIndexedChunkCount` feed state and (future) index progress.
+- **`RelevanceScorer`** — deterministic “SHADOW LEARN heuristic”: per hit,
+  `raw = 100·coverage + 12·exact + 6·prefix + 80·fileNameHit +
+  30·moduleHit`, then `score = raw / (1 + ln(1 + max(1, charCount)) / 10)`
+  (length-normalized so a 50-char chunk can out-rank a 5 000-char one that
+  merely contains the term). Coverage = number of distinct query tokens
+  matched textually (prefix-aware). Modules and repeated calls are
+  deterministic — tests freeze the exact orderings.
+- **`ExcerptGenerator`** — a ~60-char lead-in plus a ~100-char window
+  around the first corpus match, with control-character sanitization,
+  collapsed whitespace, ellipses, and a small bounded set of merged
+  highlight ranges the UI maps to bold spans.
+- **`SearchRepository.search(raw, semesterId)`** — orchestrates
+  sanitize → FTS → resolve → score → sort (`score ↓, fileName ↑,
+  chunkId ↑`), returns `Results(maxScore, hits)` or a `Failed(message)`
+  outcome (whole search never crashes the screen). Runs on
+  `Dispatchers.IO`.
+- **`SearchViewModel`** — `combine(semesterId, query)`, debounce 250 ms,
+  `flatMapLatest` producing a typed `SearchUiState`. States are explicit
+  and honest: `EMPTY` / `NO_SEMESTER` / `NO_INDEXED` / `SEARCHING` /
+  `RESULTS` / `NO_RESULTS` / `ERROR`; a semester with zero indexed chunks
+  says so instead of fabricating zero results. Changing the semester in
+  Settings re-scopes an in-flight query live (flatMapLatest cancels the
+  old producer).
+- **`SearchScreen`** — SYSTEM identity (header, scope headline, subtle
+  glow accents, monospace data labels); a field with clear (×), type
+  chips (PDF/PPTX/DOCX/TXT), `PAGE n` / `SLIDE n` refs, highlighted
+  excerpts, relative relevance bars, and a tap-to-open detail dialog.
+
+**Interface rule:** the search & browse UI keeps the dark futuristic
+SYSTEM identity (see top note); the app has no `ACTION_VIEW`/`ACTION_SEND`
+intent filter, so imports go through the in-app SAF picker only.
 
 ## Emulator finding: backslash separators
 

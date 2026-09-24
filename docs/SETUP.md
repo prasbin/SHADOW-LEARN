@@ -1,4 +1,4 @@
-# Setup & Build — SHADOW LEARN (Phase 4)
+# Setup & Build — SHADOW LEARN (Phase 5)
 
 ## 1. Requirements (exact)
 
@@ -49,9 +49,13 @@ E:\Desktop\AGENTS-UP` v2.0\.tools\gradle-8.13\bin\gradle.bat wrapper --gradle-ve
 ```powershell
 .\gradlew.bat assembleDebug          # APK: app\build\outputs\apk\debug\app-debug.apk
 .\gradlew.bat testDebugUnitTest      # unit tests (Robolectric Room tests included)
-.\gradlew.bat testDebugUnitTest assembleDebug   # full Phase 4 check (75 tests)
+.\gradlew.bat testDebugUnitTest assembleDebug   # full Phase 5 check (127 tests)
 .\gradlew.bat :app:installDebug      # needs a device/emulator on adb
 ```
+
+Tip: redirect Gradle output to a log file (`… > build.log 2>&1`) before
+filtering — piping build output through more PowerShell pipeline stages on
+this machine has triggered flaky `ChildProcess.kill` aborts.
 
 `local.properties` (`sdk.dir`) is machine-specific and gitignored.
 
@@ -113,4 +117,29 @@ E:\Desktop\AGENTS-UP` v2.0\.tools\gradle-8.13\bin\gradle.bat wrapper --gradle-ve
   FTS4 present with NO `rank` column → `FtsIndex.search` catches and
   retries an unranked `MATCH` (exercised both in tests and on device); see
   `docs/ARCHITECTURE.md` § Extraction & FTS indexing.
+- Phase 5 emulator session (2026-09-24, `CE_Test`, API 36, windowless):
+  installed the Phase 5 build over the Phase 4 data (all 8 chunks + FTS
+  rows intact). Search tab: navigated via the bottom bar, typed `gradient`
+  → 3 results ranked `ai.pptx › neural.pdf › readme.txt` with type chips,
+  `PAGE/SLIDE` refs, highlighted excerpts, relevance indicators, and a
+  working detail dialog (open/close). Nonexistent terms ("qmn", "fa")
+  render the honest `No results for "…"` state; the clear-query × works.
+  Semester scope verified end-to-end: seeded an empty "Semester 2" in the
+  DB (root sqlite3), switched to it in Settings → the Search scope headline
+  updated and a query produced the `NO_INDEXED` state ("No indexed academic
+  content in this semester yet…"); switched back and the same query
+  re-scoped live to Semester 1. **FTS4 `AND` discovery** (the reason the
+  search query form is the way it is): on this device build, bare operator
+  keywords behave inconsistently — `OR`, `NOT`, `NEAR` and space-implicit
+  AND all work, but a bare `AND` keyword is parsed as a *literal term*
+  (`forward AND network` matched only a row containing the word “and”);
+  `forward* network*` (the app's exact expression) ANDs correctly, so
+  `SearchQuery` deliberately emits space-separated prefixes (identical
+  behavior on real FTS5). Device input caveat: `adb shell input text`
+  only reliably injects into the Compose field on a fresh process/IME
+  handshake and then drops most characters, so typing-driven scenarios
+  beyond a few keystrokes were replaced by driving the production query
+  path directly against the device index (`forward* network*` → only the
+  PDF chunk containing both terms; `print*` → the `.py` chunk). Real-phone
+  keyboard/IME behavior is untested.
 - **REAL DEVICE TESTING: NOT YET PERFORMED.**
