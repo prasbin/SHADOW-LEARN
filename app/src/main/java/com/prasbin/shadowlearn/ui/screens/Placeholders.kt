@@ -27,10 +27,7 @@ private fun ComingSoon(title: String, phase: String, body: String) {
     }
 }
 
-@Composable fun QuizScreen() = ComingSoon(
-    "Daily Quiz", "Phase 6",
-    "MCQs, short answers, coding and scenario questions from your content, with XP, streaks and weak-area tracking."
-)
+@Composable fun QuizScreen_forRemoval() = Unit // placeholder removed; real QuizScreen lives in QuizScreen.kt
 
 @Composable fun ListenerScreen() = ComingSoon(
     "Listener Mode", "Phase 7",

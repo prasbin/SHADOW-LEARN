@@ -35,7 +35,7 @@ com.prasbin.shadowlearn
 └── util/                   # formatBytes (unit-tested)
 ```
 
-## Database (v4)
+## Database (v5)
 
 Tables: `academic_years` → `semesters` → `modules` → `weeks` →
 `academic_files`, all with `CASCADE` deletes and FK indices.
@@ -73,9 +73,26 @@ v4 adds the Phase 4 extraction model:
   live SQLite engine, so Room validation never sees a non-entity virtual
   table. FTS rowid == `document_chunks.id`.
 
-Future tables (pages/slides, topics, quizzes, cards, transcripts,
-progress, similarity) reference these primary keys — no destructive
-redesign planned.
+v5 adds the Phase 6 quiz model:
+
+- `quiz_sessions`: `semesterId` (plain column, no FK — quiz history
+  survives semester re-imports), `seed` (persisted determinism),
+  `totalQuestions`, `correctCount`, `xpEarned`, `streak`, `status`
+  (`in_progress` / `completed`), `startedAt`, `completedAt`; indices on
+  `(semesterId)` and `(status)`.
+- `quiz_questions`: `sessionId` (FK `CASCADE`), `position`, plain
+  `chunkId` / `academicFileId` columns (no FK, same reason), `questionType`
+  (`TRUE_FALSE` / `FILL_BLANK` / `MCQ`), `prompt`, nullable `optionsJson`
+  (NULL for true/false; verbatim option list otherwise), `correctAnswer`,
+  nullable `userAnswer` / `isCorrect`, and the citation snapshot
+  `srcFileName`, `srcFileType`, `srcPage`, `srcExcerpt` — so results and
+  feedback never need to re-query the ever-changing corpus.
+- `MIGRATION_4_5` is purely additive; Room schema `5.json` is committed
+  and migration tests cover v1→v5 … v4→v5.
+
+Future tables (pages/slides, topics, cards, transcripts, progress,
+similarity) reference these primary keys — no destructive redesign
+planned.
 
 ## Migration strategy
 
@@ -85,21 +102,25 @@ redesign planned.
   `fallbackToDestructiveMigration()` is **banned** — a missing migration
   must fail loudly, never wipe academic data.
 - `exportSchema = true`; schemas committed under `app/schemas/`
-  (`1.json`, `2.json`, `3.json`, `4.json`).
+  (`1.json`, `2.json`, `3.json`, `4.json`, `5.json`).
 - v3→v4 is a **manual** `MIGRATION_3_4` (`document_chunks` +
   `extraction_meta` + two indices) with DDL copied verbatim from the Room
- ‑exported `4.json`/`3.json`, registered in the builder, and covered by a
+  ‑exported `4.json`/`3.json`, registered in the builder, and covered by a
   dedicated `migrate3ToCurrent` test that seeds a real v3 DB (from the
   committed `3.json`), inserts hierarchy + source columns, opens it under
   the current version, and asserts rows survive and extraction tables are
   empty/queryable.
+- v4→v5 is a **manual** `MIGRATION_4_5` (both quiz tables + indices),
+  likewise verbatim from `5.json`/`4.json` and covered by a
+  `migrate4ToCurrent` test; v1→current / v2→current / v3→current
+  migrations each pass straight through it.
 - Migration tests: `DatabaseTest` asserts the current baseline
-  (`schemaVersion_isFour`); `MigrationTest` drives the real v1→current,
-  v2→current, and v3→current paths with `MigrationTestHelper` using the
-  committed `1..4.json` schemas — including the manual v1 `createSql`
-  variant (which contains a `${TABLE_NAME}` placeholder the helper cannot
-  substitute) — and asserts rows survive and later columns default
-  correctly.
+  (`schemaVersion_isFive`); `MigrationTest` drives the real v1→current,
+  v2→current, v3→current, and v4→current paths with `MigrationTestHelper`
+  using the committed `1..5.json` schemas — including the manual v1
+  `createSql` variant (which contains a `${TABLE_NAME}` placeholder the
+  helper cannot substitute) — and asserts rows survive and later columns
+  default correctly.
 
 ## Import pipeline (Phases 2–3)
 
@@ -319,6 +340,58 @@ never reaches a Matcher that a user could break.
 **Interface rule:** the search & browse UI keeps the dark futuristic
 SYSTEM identity (see top note); the app has no `ACTION_VIEW`/`ACTION_SEND`
 intent filter, so imports go through the in-app SAF picker only.
+
+## Daily Quiz (Phase 6)
+
+Quiz data lives in Room v5 (`quiz_sessions`, `quiz_questions`; additive
+`MIGRATION_4_5`, no destructive fallback). The engine is three clean
+layers behind `QuizRepository` — the only surface the screen talks to.
+
+- **`QuizRepository.launch(semesterId, length, seed)`** — one
+  semester-scoped pool query (`QuizDao.chunksOfSemester` join) →
+  `QuestionGenerator.capacity` (eligible chunks only) →
+  `QuizPlanner.plan` → `QuestionGenerator.build` (seeded) →
+  `QuizDao.insertRun` (atomic persist). Returns `null` when no chunk can
+  produce a question → the UI shows an honest “not enough depth” empty
+  state instead of fabricating one.
+- **`QuestionGenerator`** — deterministic rule-based kinds over chunk
+  terms + segments:
+  - TRUE/FALSE: mutate a verbatim sentence (global minimal edit distance
+    across the pool so variants aren't countable guesses) rendered as the
+    fixed visual pair, options never persisted (`optionsJson = NULL`).
+  - FILL THE BLANK / MULTIPLE CHOICE: verify the candidate token is a
+    real term, rebuild with tappable word chip, two distractors for
+    FILL / three for MCQ chosen from other *verbatim* corpus phrases by
+    segment similarity (`charsInCommon`), never invented, never repeated.
+  - Options are `trimmed(90)` verbatim phrases (U+2026 appended); slot
+    rotation `chunkId % 3` ∈ {FILL, MCQ, TF} cycles per chunk so
+    truncated sessions expose all kinds (fixes `.take()` head-bias).
+- **`QuizPlanner`** — greedy first pass re-chunks capacity-bounded
+  (≤3/chunk) over the recent-completed ring (`RECENT_WINDOW_CHUNKS=30`),
+  then round-robin pass-2 top-ups for small pools. Deterministic under a
+  session seed; `Random` order only affects tie breaks.
+- **`QuizRepository.answer / complete`** — writes `userAnswer` +
+  `isCorrect`; completion computes `correct × XP_PER_CORRECT (10)` and
+  `streakFrom` (consecutive calendar days from real `completionTimes`),
+  snapshots them on the row. Sessions survive process death via
+  `activeQuiz()` (resume the sole in-progress row; `positions` map to
+  the persisted `optionsJson`/stored type).
+- **`QuizViewModel`** — snapshot machine: `LOADING / NO_SEMESTER /
+  NO_INDEXED / UNAVAILABLE / IDLE / QUESTION / RESULTS / ERROR`.
+  Reloads when the DataStore year/semester changes; every action mutates
+  SQLite then rebuilds local state (nothing quiz-shaped lives only in
+  memory). `feedback` is a derived getter over the last answer
+  (correct + correctAnswer + citation excerpt) — shown as CORRECT/WRONG
+  with the verbatim `SOURCE … PAGE n` citation before advancing.
+- **`QuizScreen`** — SYSTEM identity; idle card (scope headline, live
+  stats SCORE / BEST / XP / STREAK, RULES, LENGTH 5/10/15, START QUIZ),
+  question cards (type chip, prompt, option cards, `QUESTION n OF m` +
+  `SCORE x/y`), feedback card + citation, results card (`n/m`, `%`,
+  XP, STREAK, per-question review rows, NEW QUIZ).
+- **Verifiability** — planner/generator are pure-JVM tested;
+  repository/DAO run over real Room + sqlite-jdbc; full 36-test quiz
+  suite is deterministic (frozen seeds). On-device DB inspection path:
+  `run-as` + sqlite3 = `SELECT … FROM quiz_sessions/quiz_questions`.
 
 ## Emulator finding: backslash separators
 

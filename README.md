@@ -5,11 +5,14 @@ Personal offline-first university learning OS (native Android).
 - Package: `com.prasbin.shadowlearn`
 - UI: Jetpack Compose (Material 3, dark futuristic theme)
 - Data: Room (SQLite) + DataStore + Storage Access Framework
-- Status: **Phase 5 — academic search UI + relevance ranking.** Text,
-  OOXML/.docx/.pptx, and PDF extraction with per-file, per-page chunks and
-  an incremental FTS index (FTS5 auto-falls back to FTS4), plus a fast,
-  honest search experience over the current semester. No AI, quizzes,
-  Listener Mode, or similarity checking yet (Phase 6+).
+- Status: **Phase 6 — rule-based Daily Quiz engine.** Text, OOXML/.docx/
+  .pptx, and PDF extraction with per-file, per-page chunks and an
+  incremental FTS index (FTS5 auto-falls back to FTS4), fast honest
+  academic search, and now a fully offline quiz engine over the current
+  semester: true/false, fill-the-blank and multiple choice generated from
+  verbatim excerpts, every option a real phrase from the material, every
+  question citing its source. No AI, Listener Mode, or similarity
+  checking yet (Phase 7+).
 
 ## Features (Phase 3)
 
@@ -90,7 +93,40 @@ Personal offline-first university learning OS (native Android).
 - Search UI in the dark futuristic SYSTEM identity: result cards with
   type chips (PDF/PPTX/DOCX/TXT), `PAGE n` / `SLIDE n` refs, highlighted
   excerpt, relative relevance bar, tap-to-open detail dialog, and a clear
-  (×) button.
+  (A-) button.
+
+## Features (Phase 6)
+
+- **Rule-based Daily Quiz, fully offline** (Room v5: `quiz_sessions` +
+  `quiz_questions`, `MIGRATION_4_5`). A quiz is generated deterministically
+  from the current semester's chunk pool:
+  - `QuestionGenerator` — three question kinds from one pool:
+    **TRUE/FALSE** (mutation of a verbatim sentence), **FILL THE BLANK**
+    (a term blanked from a sentence), and **MULTIPLE CHOICE** (a verbatim
+    sentence as the answer with corpus-sourced distractors). Every option
+    is a real phrase from the indexed files — never invented — and each
+    question records its source file/type/page (+ the exact verbatim
+    excerpt as the citation).
+  - Complexity-aware `QuizPlanner`: chunks eligible for each kind are
+    matched, capacity-bounded (≤3 questions/chunk), a recency ring skips
+    the last ~30 completed chunks, pass-2 round-robins top-ups so a small
+    pool still fills the session, and chunk slot rotation (`chunkId % 3`)
+    guarantees type variety across truncated sessions.
+  - Deterministic `Random(seed)` per session (seed persisted); at most
+    one in-progress session resumes across process death.
+  - Honest scoring: `+10 XP` per correct answer, streak computed from
+    real completion timestamps only (`streakFrom`), and a persisted
+    summary — SCORE / BEST / XP / STREAK on the idle screen.
+- Quiz UI in the SYSTEM identity: scope headline (tracks Settings live),
+    RULES, LENGTH 5/10/15 chips, question cards with type chips
+    (`TRUE / FALSE`, `FILL THE BLANK`, `MULTIPLE CHOICE`), option cards,
+    progress `QUESTION n OF m` + `SCORE x/y`, CORRECT/WRONG feedback with
+    the verbatim citation, a results screen (`10/10`, `100%`, XP, STREAK)
+    with per-question review rows and NEW QUIZ, and honest empty states
+    (NO_SEMESTER / NO_INDEXED / not enough depth to build a quiz).
+- Quiz is removable/verifiable end-to-end: generator/planner/repository
+  are testable without Android; repository/DAO are exercised over a real
+  Room + sqlite-jdbc engine.
 
 ## Build
 
@@ -98,9 +134,10 @@ Requirements and exact commands: see [docs/SETUP.md](docs/SETUP.md).
 Architecture and database / ingest / extraction pipeline: see
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-Status-line: `.\gradlew.bat testDebugUnitTest assembleDebug` (**127 unit
+Status-line: `.\gradlew.bat testDebugUnitTest assembleDebug` (**164 unit
 tests**, including Robolectric Room migrations + end-to-end ingest,
-reconciliation, extraction, and Search over a real FTS4 index).
+reconciliation, extraction, Search, and the quiz engine over a real FTS4
+index).
 
 ## Testing status
 
@@ -146,17 +183,37 @@ reconciliation, extraction, and Search over a real FTS4 index).
   Android build's FTS4 parses bare `OR`/`NOT`/`NEAR` and space-implicit
   AND but **not** a bare `AND` keyword — hence the expression form.
 - **REAL DEVICE TESTING: NOT YET PERFORMED.**
+- **Emulator verification performed — Phase 6 Quiz** (`CE_Test`,
+  API 36): a fresh install (post `pm clear`) rebuilt the semester via SAF
+  (Year 2 / Semester 1, 8 indexed chunks from the txt/pdf/docx/pptx
+  fixtures) and a full 10-question quiz was driven end-to-end over the
+  persisted session plan: all three kinds appeared (TRUE/FALSE, FILL THE
+  BLANK, MULTIPLE CHOICE), every question verified CORRECT feedback plus
+  its verbatim citation (`SOURCE … PAGE n` / `SLIDE n`), SCORE tracked
+  1/1→10/10, RESULTS rendered `10 / 10 · 100% · XP +100 · STREAK 1 DAYS`
+  with per-question review rows (`… CORRECT · neural.pdf · PDF · PAGE 2`,
+  `readme.txt · TXT`, etc.), NEW QUIZ returned to an idle summary showing
+  SCORE 10/10, BEST 10, XP 100, STREAK 1 DAYS, 1 completed session.
+  Live DB inspection confirmed `quiz_sessions`: `total=10, correct=10,
+  xp=100, streak=1, status=completed` and that **every**
+  `quiz_questions.userAnswer == correctAnswer` with `isCorrect=1`, TF
+  rows persisting `optionsJson=NULL` (UI renders the fixed TRUE/FALSE
+  pair) and fill/MCQ rows persisting the verbatim option list. (The
+  empty-state guard was also exercised: a single 1-chunk import could not
+  build a quiz → honest “add more material” state; Dashboard XP/level/
+  streak stay honest zeros until the progression engine.)
 
 ## Current limitations
 
-- XP / level / streak / progress are honest zeros until the Phase 6 engine.
+- XP / level / streak / progress on the Home dashboard are honest zeros
+  until the progression engine (quiz XP/streak are persisted in the quiz
+  tables already).
 - Export / Import of saved archives is not yet implemented.
-- Quiz, Cards, Listen tabs remain placeholders.
+- Cards, Listen tabs remain placeholders.
 - Search covers the current semester's indexed *chunks* only; unindexed
   file types (`.rtf`, OLE `.doc`, garbage files) are explained per file by
   the extraction metadata and never silently “match nothing”.
 
 ## Next
 
-Phase 6 — quiz engine (MCQ / short answer / code / scenario) with XP,
-streaks, and weak-area tracking.
+Phase 7 — the ONE next step (see the Phase 6 hand-off prompt).

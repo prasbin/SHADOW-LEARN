@@ -63,6 +63,19 @@ object AppContainer {
             ).also { searchRepo = it }
         }
 
+    @Volatile
+    private var quizRepo: com.prasbin.shadowlearn.data.quiz.QuizRepository? = null
+
+    fun quizDao(context: Context) = database(context).quizDao()
+
+    /** Phase 6 daily quiz engine over the semester chunk pool. */
+    fun quiz(context: Context): com.prasbin.shadowlearn.data.quiz.QuizRepository =
+        quizRepo ?: synchronized(this) {
+            quizRepo ?: com.prasbin.shadowlearn.data.quiz.QuizRepository(
+                quizDao = database(context).quizDao()
+            ).also { quizRepo = it }
+        }
+
     fun settings(context: Context): SettingsRepository =
         settings ?: synchronized(this) {
             settings ?: SettingsRepository(context.applicationContext).also { settings = it }

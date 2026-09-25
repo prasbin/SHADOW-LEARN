@@ -41,9 +41,9 @@ class DatabaseTest {
     }
 
     @Test
-    fun schemaVersion_isFour() {
-        assertEquals(4, ShadowLearnDatabase.DATABASE_VERSION)
-        assertEquals(4, db.openHelper.readableDatabase.version)
+    fun schemaVersion_isFive() {
+        assertEquals(5, ShadowLearnDatabase.DATABASE_VERSION)
+        assertEquals(5, db.openHelper.readableDatabase.version)
     }
 
     @Test

@@ -190,6 +190,88 @@ data class DocumentChunk(
 )
 
 /**
+ * Phase 6 quiz session: one row per run of the daily quiz. Created
+ * `in_progress` by QuizRepository, marked `completed` with final totals when
+ * the last question is answered. [seed] fixes the deterministic generation
+ * so a run is reproducible; correctCount/XP/streak are written ONLY from the
+ * real completed answers (never fabricated — analytics detail lands with
+ * Progress in Phase 9).
+ */
+@Entity(
+    tableName = "quiz_sessions",
+    indices = [Index("semesterId"), Index("status")]
+)
+data class QuizSession(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Semester the quiz was generated for (snapshot of the active scope). */
+    val semesterId: Long,
+    /** RNG seed every question in this run was derived from. */
+    val seed: Long,
+    val totalQuestions: Int,
+    val correctCount: Int = 0,
+    /** XP awarded at completion: correct × QuizRepository.XP_PER_CORRECT. */
+    val xpEarned: Int = 0,
+    /** Day streak at completion, computed from prior completed rows. */
+    val streak: Int = 0,
+    val status: String = STATUS_IN_PROGRESS,
+    val startedAt: Long = System.currentTimeMillis(),
+    val completedAt: Long? = null
+) {
+    companion object {
+        const val STATUS_IN_PROGRESS = "in_progress"
+        const val STATUS_COMPLETED = "completed"
+    }
+}
+
+/**
+ * Phase 6 quiz question: one row per question inside a [QuizSession].
+ *
+ * The prompt, options (JSON array — MCQ / fill-blank only; null for
+ * true-false), correct answer and the SOURCE citation are SNAPSHOTTED at
+ * generation time (srcFileName/srcPage/srcExcerpt), so a completed session
+ * stays fully reviewable even if the source file is later re-extracted or
+ * removed. [chunkId]/[academicFileId] are deliberately PLAIN columns with no
+ * foreign key (mirroring `AcademicFile.sourceFileId`): deleting or
+ * re-importing academic content must never cascade-delete quiz history.
+ */
+@Entity(
+    tableName = "quiz_questions",
+    foreignKeys = [
+        ForeignKey(
+            entity = QuizSession::class,
+            parentColumns = ["id"],
+            childColumns = ["sessionId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("sessionId")]
+)
+data class QuizQuestion(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val sessionId: Long,
+    /** 0-based order within the session. */
+    val position: Int,
+    /** Chunk the question was generated from (plain column, no FK). */
+    val chunkId: Long,
+    /** Owning academic file (plain column, no FK). */
+    val academicFileId: Long,
+    /** See data/quiz QuestionType (MCQ / TRUE_FALSE / FILL_BLANK). */
+    val questionType: String,
+    val prompt: String,
+    /** JSON array of option strings; null for true-false (True/False implied). */
+    val optionsJson: String?,
+    val correctAnswer: String,
+    /** The option the user picked; null until answered. */
+    val userAnswer: String? = null,
+    val isCorrect: Boolean? = null,
+    /** Citation snapshot: source file name / type / page-or-slide / excerpt. */
+    val srcFileName: String,
+    val srcFileType: String,
+    val srcPage: Long? = null,
+    val srcExcerpt: String
+)
+
+/**
  * A file attached to a week (lecture / tutorial / workshop material).
  *
  * [sha256] is the hex-encoded SHA-256 content hash, computed at import time.

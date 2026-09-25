@@ -23,6 +23,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  *   additive, shipped as a manual [androidx.room.migration.Migration]
  *   (rows copied verbatim; the migration SQL mirrors the exported schema
  *   exactly so validation passes).
+ * - v5 (Phase 6): adds `quiz_sessions` and `quiz_questions` (the daily quiz
+ *   engine). Purely additive, shipped as a manual MIGRATION_4_5 mirroring
+ *   the exported schema (Task #3: quiz reads live chunk text directly from
+ *   `document_chunks`, never via FTS, so no index migration is needed).
  *
  * The FTS virtual index table (`document_fts`, FTS5 where the platform
  * SQLite provides the module, FTS4 with honest fallback otherwise) is NOT
@@ -30,8 +34,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * `data/search/FtsIndex.kt` on first use (see that file and
  * docs/ARCHITECTURE.md for the FTS5→FTS4 story and acceptance evidence).
  *
- * v1→v2 and v2→v3 ship as [AutoMigration]; 3→4 is manual (verified by
- * `MigrationTest` against the committed schemas — every row is preserved).
+ * v1→v2 and v2→v3 ship as [AutoMigration]; 3→4 and 4→5 are manual (verified
+ * by `MigrationTest` against the committed schemas — every row is preserved).
  *
  * Migration strategy (see docs/ARCHITECTURE.md):
  * - Every schema change bumps [DATABASE_VERSION] and ships an explicit
@@ -44,7 +48,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     entities = [
         AcademicYear::class, Semester::class, Module::class, Week::class,
         AcademicFile::class, SourceFile::class,
-        DocumentChunk::class, ExtractionMeta::class
+        DocumentChunk::class, ExtractionMeta::class,
+        QuizSession::class, QuizQuestion::class
     ],
     version = ShadowLearnDatabase.DATABASE_VERSION,
     exportSchema = true,
@@ -61,8 +66,10 @@ abstract class ShadowLearnDatabase : RoomDatabase() {
 
     abstract fun searchDao(): SearchDao
 
+    abstract fun quizDao(): QuizDao
+
     companion object {
-        const val DATABASE_VERSION = 4
+        const val DATABASE_VERSION = 5
         const val DATABASE_NAME = "shadowlearn.db"
 
         /**
@@ -111,6 +118,63 @@ abstract class ShadowLearnDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v4 → v5: creates `quiz_sessions` and `quiz_questions` (Phase 6).
+         * Purely additive; quiz tables reference academic rows through PLAIN
+         * columns (never FKs) so quiz history survives re-imports/deletes.
+         * DDL mirrors the exported v5 schema exactly (TableInfo validation);
+         * asserted by MigrationTest.migrate4ToCurrent.
+         */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `quiz_sessions` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`semesterId` INTEGER NOT NULL, " +
+                        "`seed` INTEGER NOT NULL, " +
+                        "`totalQuestions` INTEGER NOT NULL, " +
+                        "`correctCount` INTEGER NOT NULL, " +
+                        "`xpEarned` INTEGER NOT NULL, " +
+                        "`streak` INTEGER NOT NULL, " +
+                        "`status` TEXT NOT NULL, " +
+                        "`startedAt` INTEGER NOT NULL, " +
+                        "`completedAt` INTEGER )"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_quiz_sessions_semesterId` " +
+                        "ON `quiz_sessions` (`semesterId`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_quiz_sessions_status` " +
+                        "ON `quiz_sessions` (`status`)"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `quiz_questions` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`sessionId` INTEGER NOT NULL, " +
+                        "`position` INTEGER NOT NULL, " +
+                        "`chunkId` INTEGER NOT NULL, " +
+                        "`academicFileId` INTEGER NOT NULL, " +
+                        "`questionType` TEXT NOT NULL, " +
+                        "`prompt` TEXT NOT NULL, " +
+                        "`optionsJson` TEXT, " +
+                        "`correctAnswer` TEXT NOT NULL, " +
+                        "`userAnswer` TEXT, " +
+                        "`isCorrect` INTEGER, " +
+                        "`srcFileName` TEXT NOT NULL, " +
+                        "`srcFileType` TEXT NOT NULL, " +
+                        "`srcPage` INTEGER, " +
+                        "`srcExcerpt` TEXT NOT NULL, " +
+                        "FOREIGN KEY(`sessionId`) REFERENCES `quiz_sessions`(`id`) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE )"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_quiz_questions_sessionId` " +
+                        "ON `quiz_questions` (`sessionId`)"
+                )
+            }
+        }
+
         @Volatile
         private var instance: ShadowLearnDatabase? = null
 
@@ -123,7 +187,7 @@ abstract class ShadowLearnDatabase : RoomDatabase() {
                 )
                     // No fallbackToDestructiveMigration() by design: if a future
                     // migration is missing, fail loudly instead of wiping data.
-                    .addMigrations(MIGRATION_3_4)
+                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                     .also { instance = it }
             }
