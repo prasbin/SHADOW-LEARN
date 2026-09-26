@@ -49,7 +49,7 @@ E:\Desktop\AGENTS-UP` v2.0\.tools\gradle-8.13\bin\gradle.bat wrapper --gradle-ve
 ```powershell
 .\gradlew.bat assembleDebug          # APK: app\build\outputs\apk\debug\app-debug.apk
 .\gradlew.bat testDebugUnitTest      # unit tests (Robolectric Room tests included)
-.\gradlew.bat testDebugUnitTest assembleDebug   # full Phase 7 check (188 tests)
+.\gradlew.bat testDebugUnitTest assembleDebug   # full Phase 8 check (251 tests)
 .\gradlew.bat :app:installDebug      # needs a device/emulator on adb
 ```
 
@@ -163,12 +163,27 @@ this machine has triggered flaky `ChildProcess.kill` aborts.
   COMPLETED with 2 PENDING segments; on-device sqlite3 shows
   `(0, 0 ms, 46853 ms)` + `(1, 53164 ms, 7336 ms)` — the 6.3 s paused
   gap exactly excluded — plus a 677 KB app-private `.m4a`
-  (`-rw-------`). Segment detail dialog shows “Transcript pending.”
+  (`-rw-------`). Segment detail dialog shows "Transcript pending."
   with the no-STT disclaimer. `am force-stop` + relaunch → IDLE with
   1 persisted session, no FATALs. Debugging notes: `adb shell
-  uiautomator dump` intermittently returns “null root node” while a
+  uiautomator dump` intermittently returns "null root node" while a
   permission dialog animates (retry the dump); inline `adb shell`
   quoting mangles sqlite3 statements on this box — pipe SQL via stdin
   instead. Emulator CANNOT prove real-mic quality, OEM battery-killer
   behavior, or Bluetooth routing.
-- **REAL DEVICE TESTING: NOT YET PERFORMED.**
+- Phase 8 emulator session (2026-09-26, `CE_Test`, API 36, windowless,
+  current `app-debug.apk` installed over Phase 7 data): install ran the
+  v6→v7 migration (`user_version 7`, all Phase 5/6/7 rows intact).
+  Cards tab: renders **real Phase 8 UI** (not ComingSoon) —
+  `FLASHCARDS` title, deck/semester/total/due/suspended counts,
+  Start Review. Deck built from seeded Phase 7 data (4 chunk cards +
+  1 READY segment card; PENDING/FAILED excluded). Start Review → Reveal
+  → back text + citation (`lecture1.pdf · PDF · PAGE 1`) → AGAIN/HARD/
+  GOOD/EASY → GOOD grades card (interval 0→1, dueAt tomorrow day-
+  boundary). Force-stop mid-review (2/3 cards graded) → relaunch →
+  deck shows "Due now: 2" + **Resume Review** → resumes at next card
+  (previously graded cards excluded), counts preserved (reviewed/retained).
+  Complete remaining 2 cards (GOOD) → Results: Reviewed 3, Retained 3,
+  100%. DB verified: 2 COMPLETED sessions, 4 events, all cards
+  intervalDays=1, dueAt=tomorrow day-boundary. No FATAL crashes.
+- **REAL DEVICE TESTING: NOT PERFORMED.**

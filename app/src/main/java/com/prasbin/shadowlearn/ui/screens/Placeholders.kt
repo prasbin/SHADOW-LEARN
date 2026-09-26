@@ -31,11 +31,6 @@ private fun ComingSoon(title: String, phase: String, body: String) {
 
 // ListenerScreen removed: real ListenerScreen lives in ListenerScreen.kt (Phase 7).
 
-@Composable fun FlashcardsScreen() = ComingSoon(
-    "Flashcards", "Phase 8",
-    "Auto-generated cards from materials, lectures, quiz mistakes and weak topics — with spaced review."
-)
-
 @Composable fun ProgressScreen() = ComingSoon(
     "Progress", "Phase 6",
     "Subject → Module → Week → Topic → Practice → Test → Mastery, with XP levels (500 XP = 1 level)."

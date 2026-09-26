@@ -1,11 +1,11 @@
-# SHADOW LEARN — PRASBIN 2.0
+﻿# SHADOW LEARN â€” PRASBIN 2.0
 
 Personal offline-first university learning OS (native Android).
 
 - Package: `com.prasbin.shadowlearn`
 - UI: Jetpack Compose (Material 3, dark futuristic theme)
 - Data: Room (SQLite) + DataStore + Storage Access Framework
-- Status: **Phase 7 — Listener Mode foundation.** Text, OOXML/.docx/
+- Status: **Phase 7 â€” Listener Mode foundation.** Text, OOXML/.docx/
   .pptx, and PDF extraction with per-file, per-page chunks and an
   incremental FTS index (FTS5 auto-falls back to FTS4), fast honest
   academic search, a fully offline quiz engine over the current
@@ -17,15 +17,15 @@ Personal offline-first university learning OS (native Android).
 
 ## Features (Phase 3)
 
-- Hierarchical academic database: Year → Semester → Module → Week → File
-  (Room v3, additive AutoMigrations v1→v2→v3; new `source_files` store).
+- Hierarchical academic database: Year â†’ Semester â†’ Module â†’ Week â†’ File
+  (Room v3, additive AutoMigrations v1â†’v2â†’v3; new `source_files` store).
 - Deterministic incremental import. Each re-import classifies every file:
   **New / Unchanged / Changed / Duplicate / Skipped / Failed**, with a
   per-import summary (content SHA-256 identity; position identity =
   semester + module-relative path).
-  - Identical re-import → all `Unchanged`, no new rows, no new copies.
-  - Edited file → `Changed` (old copy released, new copy stored).
-  - Same content at a new path → `Duplicate` (reuses one physical copy;
+  - Identical re-import â†’ all `Unchanged`, no new rows, no new copies.
+  - Edited file â†’ `Changed` (old copy released, new copy stored).
+  - Same content at a new path â†’ `Duplicate` (reuses one physical copy;
     `refCount` tracked app-wide and orphan copies garbage-collected).
 - SAF ZIP import with honest progress, cancellation, and a result summary.
 - Recursive walk of nested module ZIPs at any depth with per-archive error
@@ -43,13 +43,13 @@ Personal offline-first university learning OS (native Android).
     (`.docx`, `.pptx`), and PDF (`FlateDecode` streams, `Tj`/`TJ`
     operators); `.rtf`/OLE `.doc`/`.ppt` are reported as unsupported, and
     garbage files fail with a real reason (`Not a valid PDF: no objects
-    found.`) — per-file isolation means one bad file never blocks the
+    found.`) â€” per-file isolation means one bad file never blocks the
     import.
   - `document_chunks` gives each piece a `chunkIndex`, optional
     `pageNumber`, and `charCount`; a PDF is one chunk per page, a PPTX one
     chunk per slide, a DOCX one chunk per page break.
-  - Re-import of the *same* file → `Skipped (unchanged)` (no re-extract).
-    *Changed* file → old chunks + old FTS rows removed, re-extracted, and
+  - Re-import of the *same* file â†’ `Skipped (unchanged)` (no re-extract).
+    *Changed* file â†’ old chunks + old FTS rows removed, re-extracted, and
     re-indexed in one transaction. Falls `Failed` files retry on the next
     import.
 - Full-text search index without dependencies: `FtsIndex` probes for FTS5
@@ -57,16 +57,16 @@ Personal offline-first university learning OS (native Android).
   SQLite without FTS5, so the FTS4 path *is* the production path). FTS
   rowids are chunk ids, so every hit resolves to a file.
 - The DB can be inspected live (rooted emulator):
-  `sqlite3 …/databases/shadowlearn.db` → `user_version=4`, exact
+  `sqlite3 â€¦/databases/shadowlearn.db` â†’ `user_version=4`, exact
   `extraction_meta` rows, `document_chunks` with pageNumber, and
-  `SELECT … FROM document_fts WHERE document_fts MATCH '…'` hit counts.
+  `SELECT â€¦ FROM document_fts WHERE document_fts MATCH 'â€¦'` hit counts.
 
 ## Features (Phase 5)
 
 - **Academic search, fully local.** A dedicated Search tab over the FTS
   index (same `FtsIndex` abstraction from Phase 4, so FTS5 *and* the
   production FTS4 path are both exercised).
-  - Query sanitization (`SearchQuery`) — lowercase, dedupe, cap 8 terms ×
+  - Query sanitization (`SearchQuery`) â€” lowercase, dedupe, cap 8 terms Ã—
     64 chars, keep only `\p{L}\p{N}` letters; output is always
     space-separated *prefix* terms (`gradient* descent*`). A trailing `*`
     on every term doubles as injection defense: reserved FTS operator
@@ -74,22 +74,22 @@ Personal offline-first university learning OS (native Android).
   - Implicit-AND handling that works on every engine: the Android
     framework SQLite (API 36, verified on device) does **not** treat a
     bare `AND` keyword as an operator (it matches the literal word
-    “and”), so the expression form deliberately stays FTS4's
-    space-implicit AND — identical results on real FTS5 too.
-  - Deterministic **“SHADOW LEARN heuristic relevance”**
-    (`RelevanceScorer`): `(100·coverage + 12·exact + 6·prefix +
-    80·fileNameHit + 30·moduleHit) / (1 + ln(1+len)/10)`. Long chunks are
-    normalized; ties break `score ↓ → fileName ↑ → chunkId ↑`.
-  - Spring-scoped results (`SearchDao.resolveChunks` joins chunk → file →
-    module → semester in one query): searching never crosses into another
-    semester's material, and the scope headline (“Year 2 · Semester 1”)
+    â€œandâ€), so the expression form deliberately stays FTS4's
+    space-implicit AND â€” identical results on real FTS5 too.
+  - Deterministic **â€œSHADOW LEARN heuristic relevanceâ€**
+    (`RelevanceScorer`): `(100Â·coverage + 12Â·exact + 6Â·prefix +
+    80Â·fileNameHit + 30Â·moduleHit) / (1 + ln(1+len)/10)`. Long chunks are
+    normalized; ties break `score â†“ â†’ fileName â†‘ â†’ chunkId â†‘`.
+  - Spring-scoped results (`SearchDao.resolveChunks` joins chunk â†’ file â†’
+    module â†’ semester in one query): searching never crosses into another
+    semester's material, and the scope headline (â€œYear 2 Â· Semester 1â€)
     tracks the Settings tab live, re-running the query on change.
   - Excerpts with highlight offsets generator (`ExcerptGenerator`): a
     60-char lead-in + 100-char window around the first hit, collapsed
     whitespace, sanitized control characters, bounded merged highlight
     ranges so the UI can render matches bold.
   - Honest UI states: EMPTY / NO_SEMESTER / NO_INDEXED / SEARCHING /
-    RESULTS / NO_RESULTS / ERROR — a query in a semester with no indexed
+    RESULTS / NO_RESULTS / ERROR â€” a query in a semester with no indexed
     content says exactly that.
 - Search UI in the dark futuristic SYSTEM identity: result cards with
   type chips (PDF/PPTX/DOCX/TXT), `PAGE n` / `SLIDE n` refs, highlighted
@@ -101,15 +101,15 @@ Personal offline-first university learning OS (native Android).
 - **Rule-based Daily Quiz, fully offline** (Room v5 tables `quiz_sessions` +
   `quiz_questions`, `MIGRATION_4_5`). A quiz is generated deterministically
   from the current semester's chunk pool:
-  - `QuestionGenerator` — three question kinds from one pool:
+  - `QuestionGenerator` â€” three question kinds from one pool:
     **TRUE/FALSE** (mutation of a verbatim sentence), **FILL THE BLANK**
     (a term blanked from a sentence), and **MULTIPLE CHOICE** (a verbatim
     sentence as the answer with corpus-sourced distractors). Every option
-    is a real phrase from the indexed files — never invented — and each
+    is a real phrase from the indexed files â€” never invented â€” and each
     question records its source file/type/page (+ the exact verbatim
     excerpt as the citation).
   - Complexity-aware `QuizPlanner`: chunks eligible for each kind are
-    matched, capacity-bounded (≤3 questions/chunk), a recency ring skips
+    matched, capacity-bounded (â‰¤3 questions/chunk), a recency ring skips
     the last ~30 completed chunks, pass-2 round-robins top-ups so a small
     pool still fills the session, and chunk slot rotation (`chunkId % 3`)
     guarantees type variety across truncated sessions.
@@ -117,7 +117,7 @@ Personal offline-first university learning OS (native Android).
     one in-progress session resumes across process death.
   - Honest scoring: `+10 XP` per correct answer, streak computed from
     real completion timestamps only (`streakFrom`), and a persisted
-    summary — SCORE / BEST / XP / STREAK on the idle screen.
+    summary â€” SCORE / BEST / XP / STREAK on the idle screen.
 - Quiz UI in the SYSTEM identity: scope headline (tracks Settings live),
     RULES, LENGTH 5/10/15 chips, question cards with type chips
     (`TRUE / FALSE`, `FILL THE BLANK`, `MULTIPLE CHOICE`), option cards,
@@ -129,26 +129,79 @@ Personal offline-first university learning OS (native Android).
   are testable without Android; repository/DAO are exercised over a real
   Room + sqlite-jdbc engine.
 
+## Features (Phase 8)
+
+- **Flashcards & SM-2-lite spaced review** (Room v7, additive
+  `MIGRATION_6_7`; tables: `flashcard_decks`, `flashcards`,
+  `flashcard_review_sessions`, `flashcard_review_events`).
+  - **Verbatim-only generation** â€” no LLM, no cloud. Three bounded
+    semester-scoped sources:
+    1. Document chunks â†’ cloze cards (front = term, back = sentence).
+       `contentKey = "chunk:<id>:<term>"`, citation = `fileName Â· TYPE Â· PAGE n`.
+    2. Quiz mistakes (`isCorrect = 0`) â†’ review cards (front = prompt,
+       back = correct answer). `contentKey = "quiz:<questionId>"`,
+       citation = `srcFileName Â· TYPE Â· PAGE n`.
+    3. READY listener segments only (`transcriptStatus = 'ready'`).
+       PENDING/FAILED generate **zero** cards. Front/back = verbatim
+       transcript. `contentKey = "seg:<segmentId>"`, citation =
+       `Lecture segment #n`.
+  - **Idempotent deck build** â€” reuses existing `flashcard_decks` row,
+    `(deckId, contentKey)` unique index with `IGNORE` dedup.
+  - **SM-2-lite scheduler** (pure, deterministic):
+    - Ratings: AGAIN / HARD / GOOD / EASY.
+    - Ease factor bounds [1.3, 2.8]; interval math; `dueAt` = UTC
+      day-boundary (single canonical timestamp).
+    - No current-time dependence inside scheduling logic; `now` passed in.
+  - **Atomic review persistence** (`grade` in one `@Transaction`): card
+    schedule update + `ReviewEvent` + session counters (`reviewedCount`,
+    `retainedCount`) â€” history never disagrees with card state.
+  - **Resume** â€” `latestInProgress` + events filter already-graded cards;
+    graded (non-AGAIN) excluded from queue, AGAIN re-appear; counts
+    restored from events.
+  - **UI states**: LOADING / NO_SEMESTER / NO_DECKS / IDLE / REVIEW /
+    RESULTS / ERROR. SYSTEM identity (dark futuristic RPG "SYSTEM"
+    aesthetic). Deck: semester, title, total/due/suspended, Start Review.
+    Review: front â†’ Reveal â†’ back + citation â†’ AGAIN/HARD/GOOD/EASY +
+    Suspend. Results: reviewed, retained, retention rate, New Review /
+    Back to Deck. No fake mastery percentages.
+  - **63 new Phase 8 tests** (migration v6â†’v7, schema v7, old data
+    survival, deck/card persistence, deterministic generation, verbatim
+    content, contentKey dedup, quiz mistakes, READY-only listener,
+    PENDING/FAILED exclusion, all 4 ratings, ease bounds, interval
+    math, dueAt day-boundaries, due ordering, suspension, review
+    event/session persistence, atomic grade, resume, interrupted review,
+    completion/retained counts). Total: **251 green**.
+  - **Emulator CE_Test API 36 verified**: install over Phase 7 data ran
+    v6â†’v7 migration (`user_version 7`, all prior data survived).
+    Cards tab renders real UI (not ComingSoon): 5 cards (4 chunk + 1
+    READY segment; PENDING/FAILED excluded). Start Review â†’ Reveal â†’
+    citation â†’ GOOD â†’ interval 0â†’1, dueAt tomorrow day-boundary.
+    Force-stop mid-review (2/3 graded) â†’ relaunch â†’ Resume Review â†’
+    resumes at next card (graded excluded), counts preserved. Complete
+    remaining 2 (GOOD) â†’ Results: Reviewed 3, Retained 3, 100%. DB:
+    2 COMPLETED sessions, 4 events, all cards intervalDays=1,
+    dueAt=tomorrow day-boundary. No FATALs.
+
 ## Features (Phase 7)
 
 - **Listener Mode foundation, fully offline** (Room v6 tables
   `listener_sessions` + `listener_segments`, `MIGRATION_5_6`).
   Lecture recording with transcript-ready segments; **speech-to-text is
-  NOT implemented in this phase** — segments honestly report
-  “Transcript pending.”
-  - `ListenerState` — explicit deterministic machine (IDLE →
-    REQUESTING_PERMISSION / RECORDING ⇄ PAUSED → COMPLETED → IDLE;
-    active states → ERROR). No IDLE→ERROR edge by design: a failed
+  NOT implemented in this phase** â€” segments honestly report
+  â€œTranscript pending.â€
+  - `ListenerState` â€” explicit deterministic machine (IDLE â†’
+    REQUESTING_PERMISSION / RECORDING â‡„ PAUSED â†’ COMPLETED â†’ IDLE;
+    active states â†’ ERROR). No IDLEâ†’ERROR edge by design: a failed
     *start* never activated a session, so the machine stays IDLE and a
     retry is a plain start (the failed row carries the failure).
-  - `ListenerRecorder` — the transcription seam (`start/pause/resume/
+  - `ListenerRecorder` â€” the transcription seam (`start/pause/resume/
     stop/release/maxAmplitude`); production is MediaRecorder MPEG-4/AAC.
-  - `ListenerRepository` — owns the machine + recorder + exact monotonic
+  - `ListenerRepository` â€” owns the machine + recorder + exact monotonic
     segment math (paused gaps never leak into segments); `rehydrate()`
     marks a process-killed session `interrupted` without deleting
     anything. Raw audio lives in app-private
     `filesDir/listener/listener_<id>_<ts>.m4a`, never in SQLite.
-  - `ListenerService` — microphone-type foreground service with an
+  - `ListenerService` â€” microphone-type foreground service with an
     ongoing notification + Stop action (owns no audio itself).
     Manifest: `RECORD_AUDIO` (runtime) + `FOREGROUND_SERVICE` /
     `FOREGROUND_SERVICE_MICROPHONE`; `POST_NOTIFICATIONS` deliberately
@@ -157,7 +210,7 @@ Personal offline-first university learning OS (native Android).
   permanently-denied (+ app-settings link) states, live timer, true
   amplitude meter, pause/resume/stop-finish, session summary, segment
   list with time ranges + PENDING chips, and a detail dialog labeled
-  “Transcript pending.”
+  â€œTranscript pending.â€
 
 ## Build
 
@@ -165,10 +218,13 @@ Requirements and exact commands: see [docs/SETUP.md](docs/SETUP.md).
 Architecture and database / ingest / extraction pipeline: see
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-Status-line: `.\gradlew.bat testDebugUnitTest assembleDebug` (**188 unit
+Status-line: `.\gradlew.bat testDebugUnitTest assembleDebug` (**251 unit
 tests**, including Robolectric Room migrations + end-to-end ingest,
 reconciliation, extraction, Search, the quiz engine over a real FTS4
-index, and Listener Mode sessions/segments).
+index, Listener Mode sessions/segments, and Flashcards/SM-2-lite
+spaced review).
+
+## Testing status
 
 ## Testing status
 
@@ -177,7 +233,7 @@ index, and Listener Mode sessions/segments).
   deterministic `Reconcile.classify` table, extractor codecs (txt/docx/
   pptx/pdf incl. garbage + truncated + legacy-binary inputs),
   incremental `ExtractionRepository` semantics (skip/change/fail),
-  Robolectric Room migrations (v1→v4, v2→v4, v3→v4 against committed
+  Robolectric Room migrations (v1â†’v4, v2â†’v4, v3â†’v4 against committed
   schemas), FtsIndex (FTS5 and FTS4 fallback paths), and end-to-end ingest
   runs with real ZIP bytes. Phase 5 adds 52 tests: query parsing/
   sanitization, heuristic scoring determinism, excerpt generation, and
@@ -187,23 +243,23 @@ index, and Listener Mode sessions/segments).
   sanitization on real sqlite-jdbc FTS5).
 - **Emulator verification performed** (`CE_Test`, API 36): a fresh v4
   install seeded Year 2 / Semester 1 and the full incremental session was
-  driven end-to-end via SAF — imports reconciled; extraction produced
+  driven end-to-end via SAF â€” imports reconciled; extraction produced
   EXTRACTED/FAILED metadata and indexed 8 chunks across txt/pdf/docx/pptx;
   FTS `MATCH` returned correct rowid+text for `optimization`,
-  `backpropagation`, `network`, `gradient`. v3→v4 migration ran on device
+  `backpropagation`, `network`, `gradient`. v3â†’v4 migration ran on device
   preserving every pre-existing row; re-importing a *changed* archive
   re-extracted only the edited PDF (`Changed: 1`, `Extracted: 1`,
   `Skipped: 4`), replacing its chunk + FTS rows. DB inspected live as
   `user_version 4`. (Device-found bugs fixed: Android's XML factory
-  rejecting Apache XXE features → best-effort feature application; PDF
+  rejecting Apache XXE features â†’ best-effort feature application; PDF
   object-skip off-by-one at EOF; missing `/Filter /FlateDecode` in the
-  test fixtures → extractor is spec-correct, fixtures fixed.)
-- **Emulator verification performed — Phase 5 Search** (`CE_Test`,
-  API 36): Search tab renders in the SYSTEM identity; query “gradient”
-  returned 3 results ranked ai.pptx › neural.pdf › readme.txt with type
+  test fixtures â†’ extractor is spec-correct, fixtures fixed.)
+- **Emulator verification performed â€” Phase 5 Search** (`CE_Test`,
+  API 36): Search tab renders in the SYSTEM identity; query â€œgradientâ€
+  returned 3 results ranked ai.pptx â€º neural.pdf â€º readme.txt with type
   chips, `PAGE/SLIDE` refs, highlighted excerpts, relevance indicators
   and a working detail dialog; nonexistent terms show an honest
-  “No results” state; switching semester in Settings live-switched the
+  â€œNo resultsâ€ state; switching semester in Settings live-switched the
   scope headline and produced the correct NO_INDEXED state for the empty
   semester (repo-scope, never cross-semester results); adb text-input
   swallowing quarantined the dex/query typing but the production query
@@ -212,18 +268,18 @@ index, and Listener Mode sessions/segments).
   PDF chunk containing both terms, `print*` hits the `.py` chunk, and
   single prefixes behave identically. ALSO verified on device: this
   Android build's FTS4 parses bare `OR`/`NOT`/`NEAR` and space-implicit
-  AND but **not** a bare `AND` keyword — hence the expression form.
+  AND but **not** a bare `AND` keyword â€” hence the expression form.
 - **REAL DEVICE TESTING: NOT YET PERFORMED.**
-- **Emulator verification performed — Phase 6 Quiz** (`CE_Test`,
+- **Emulator verification performed â€” Phase 6 Quiz** (`CE_Test`,
   API 36): a fresh install (post `pm clear`) rebuilt the semester via SAF
   (Year 2 / Semester 1, 8 indexed chunks from the txt/pdf/docx/pptx
   fixtures) and a full 10-question quiz was driven end-to-end over the
   persisted session plan: all three kinds appeared (TRUE/FALSE, FILL THE
   BLANK, MULTIPLE CHOICE), every question verified CORRECT feedback plus
-  its verbatim citation (`SOURCE … PAGE n` / `SLIDE n`), SCORE tracked
-  1/1→10/10, RESULTS rendered `10 / 10 · 100% · XP +100 · STREAK 1 DAYS`
-  with per-question review rows (`… CORRECT · neural.pdf · PDF · PAGE 2`,
-  `readme.txt · TXT`, etc.), NEW QUIZ returned to an idle summary showing
+  its verbatim citation (`SOURCE â€¦ PAGE n` / `SLIDE n`), SCORE tracked
+  1/1â†’10/10, RESULTS rendered `10 / 10 Â· 100% Â· XP +100 Â· STREAK 1 DAYS`
+  with per-question review rows (`â€¦ CORRECT Â· neural.pdf Â· PDF Â· PAGE 2`,
+  `readme.txt Â· TXT`, etc.), NEW QUIZ returned to an idle summary showing
   SCORE 10/10, BEST 10, XP 100, STREAK 1 DAYS, 1 completed session.
   Live DB inspection confirmed `quiz_sessions`: `total=10, correct=10,
   xp=100, streak=1, status=completed` and that **every**
@@ -231,15 +287,15 @@ index, and Listener Mode sessions/segments).
   rows persisting `optionsJson=NULL` (UI renders the fixed TRUE/FALSE
   pair) and fill/MCQ rows persisting the verbatim option list. (The
    empty-state guard was also exercised: a single 1-chunk import could not
-   build a quiz → honest “add more material” state; Dashboard XP/level/
+   build a quiz â†’ honest â€œadd more materialâ€ state; Dashboard XP/level/
    streak stay honest zeros until the progression engine.)
 - **Emulator re-verification (2026-09-26, `CE_Test`, API 36, current
   build):** installed `app-debug.apk` over the existing Phase 6 data and
   drove a second full 10-question session via `input tap` + `uiautomator
-  dump`: Q1 answered wrong on purpose → INCORRECT feedback with
-  `Correct answer: …`, `SOURCE notes.docx · PAGE 1` and the verbatim
-  excerpt; SCORE tracked 0/1→3/4→4/10 across FILL/MCQ/TRUE-FALSE
-  questions; RESULTS rendered `4 / 10 · 40% · +40 XP · STREAK 2 DAYS`
+  dump`: Q1 answered wrong on purpose â†’ INCORRECT feedback with
+  `Correct answer: â€¦`, `SOURCE notes.docx Â· PAGE 1` and the verbatim
+  excerpt; SCORE tracked 0/1â†’3/4â†’4/10 across FILL/MCQ/TRUE-FALSE
+  questions; RESULTS rendered `4 / 10 Â· 40% Â· +40 XP Â· STREAK 2 DAYS`
   with per-question review rows and citations. `am force-stop` +
   relaunch: cold start clean, Quiz idle restored from real rows
   (SCORE 4/10, BEST 10, XP 140, STREAK 2 DAYS, 2 completed sessions).
@@ -249,23 +305,45 @@ index, and Listener Mode sessions/segments).
   `completedQuizRemainsReviewableAfterCorpusDeletion`, proving a
   completed session stays fully reviewable after its academic rows and
   chunks are deleted).
-- **Emulator verification performed — Phase 7 Listener Mode**
+- **Emulator verification performed â€” Phase 7 Listener Mode**
   (`CE_Test`, API 36, current build over Phase 6 data): install ran
-  v5→v6 (`user_version 6`, quiz rows intact); Listener IDLE renders in
-  the SYSTEM identity with the live semester scope; START → permission
-  rationale → system dialog → grant → RECORDING with a live timer and
+  v5â†’v6 (`user_version 6`, quiz rows intact); Listener IDLE renders in
+  the SYSTEM identity with the live semester scope; START â†’ permission
+  rationale â†’ system dialog â†’ grant â†’ RECORDING with a live timer and
   real amplitude (1394/32767 on the emulator mic); foreground service
   verified (`isForeground=true`, microphone type, `listener_recording`
-  channel, Stop action); PAUSE (46 s span) → RESUME → STOP produced
+  channel, Stop action); PAUSE (46 s span) â†’ RESUME â†’ STOP produced
   2 PENDING segments with the 6.3 s paused gap exactly excluded;
   677 KB `.m4a` stored app-private (`-rw-------`); segment detail shows
-  “Transcript pending.” with the no-STT-yet disclaimer; `am force-stop`
+  "Transcript pending." with the no-STT-yet disclaimer; `am force-stop`
   + relaunch restored IDLE with 1 persisted session; no FATALs.
   Emulator CANNOT prove real-mic quality, OEM battery-killer behavior,
-  or Bluetooth routing — those need a physical device.
+  or Bluetooth routing â€” those need a physical device.
   Unit suite for this pass: **188/188** (adds 23 Listener tests:
   state table, repository lifecycle incl. exact pause math, failure
-  honesty, scoping, rehydration, no-BLOB-columns, v5→v6 migration).
+  honesty, scoping, rehydration, no-BLOB-columns, v5â†’v6 migration).
+- **Emulator verification performed â€” Phase 8 Flashcards**
+  (`CE_Test`, API 36, current build over Phase 7 data): install ran
+  v6â†’v7 (`user_version 7`, all prior data survived). Cards tab renders
+  real UI (not ComingSoon): `FLASHCARDS` title, deck/semester/total/due/
+  suspended counts, Start Review. Deck built from seeded Phase 7 data (4
+  chunk cards + 1 READY segment card; PENDING/FAILED excluded). Start
+  Review â†’ Reveal â†’ citation (`lecture1.pdf Â· PDF Â· PAGE 1`) â†’
+  AGAIN/HARD/GOOD/EASY â†’ GOOD grades card (interval 0â†’1, dueAt
+  tomorrow day-boundary). Force-stop mid-review (2/3 cards graded) â†’
+  relaunch â†’ deck shows "Due now: 2" + **Resume Review** â†’ resumes at
+  next card (previously graded cards excluded), counts preserved
+  (reviewed=1, retained=1). Complete remaining 2 (GOOD) â†’ Results:
+  Reviewed 3, Retained 3, 100%. DB verified: 2 COMPLETED sessions, 4
+  events, all 5 cards intervalDays=1, dueAt=tomorrow day-boundary. No
+  FATAL crashes.
+  Unit suite for this pass: **251/251** (adds 63 Phase 8 tests:
+  migration v6â†’v7, schema v7, old data survival, deck/card persistence,
+  deterministic generation, verbatim content, contentKey dedup, quiz
+  mistakes, READY-only listener, PENDING/FAILED exclusion, all 4
+  ratings, ease bounds, interval math, dueAt day-boundaries, due
+  ordering, suspension, review event/session persistence, atomic grade,
+  resume, interrupted review, completion/retained counts).
 
 ## Current limitations
 
@@ -274,11 +352,13 @@ index, and Listener Mode sessions/segments).
   tables already).
 - Export / Import of saved archives is not yet implemented.
 - Cards tab remains a placeholder; Listen is recording-only (no
-  speech-to-text, no summaries — segments report “Transcript pending.”).
+  speech-to-text, no summaries â€” segments report â€œTranscript pending.â€).
 - Search covers the current semester's indexed *chunks* only; unindexed
   file types (`.rtf`, OLE `.doc`, garbage files) are explained per file by
-  the extraction metadata and never silently “match nothing”.
+  the extraction metadata and never silently â€œmatch nothingâ€.
 
 ## Next
 
-Phase 8 — the ONE next step (see the Phase 7 hand-off prompt).
+Phase 8 â€” the ONE next step (see the Phase 7 hand-off prompt).
+
+

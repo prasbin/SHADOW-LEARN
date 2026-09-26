@@ -102,7 +102,7 @@ planned.
   `fallbackToDestructiveMigration()` is **banned** — a missing migration
   must fail loudly, never wipe academic data.
 - `exportSchema = true`; schemas committed under `app/schemas/`
-  (`1.json`, `2.json`, `3.json`, `4.json`, `5.json`).
+  (`1.json`, `2.json`, `3.json`, `4.json`, `5.json`, `6.json`, `7.json`).
 - v3→v4 is a **manual** `MIGRATION_3_4` (`document_chunks` +
   `extraction_meta` + two indices) with DDL copied verbatim from the Room
   ‑exported `4.json`/`3.json`, registered in the builder, and covered by a
@@ -118,13 +118,19 @@ planned.
   verbatim from `6.json`/`5.json` and covered by a `migrate5ToCurrent`
   test that seeds v5 rows (academic + quiz) and asserts they survive with
   listener tables empty/usable.
+- v6→v7 is a **manual** `MIGRATION_6_7` (Phase 8 flashcard tables:
+  `flashcard_decks`, `flashcards`, `flashcard_review_sessions`,
+  `flashcard_review_events` + indices), verbatim from `7.json`/`6.json`
+  and covered by a `migrate6ToCurrent` test that seeds v6 rows (academic
+  + quiz + listener) and asserts they survive with flashcard tables
+  empty/usable.
 - Migration tests: `DatabaseTest` asserts the current baseline
-  (`schemaVersion_isSix`); `MigrationTest` drives the real v1→current,
-  v2→current, v3→current, v4→current, and v5→current paths with `MigrationTestHelper`
-  using the committed `1..6.json` schemas — including the manual v1
-  `createSql` variant (which contains a `${TABLE_NAME}` placeholder the
-  helper cannot substitute) — and asserts rows survive and later columns
-  default correctly.
+  (`schemaVersion_isSeven`); `MigrationTest` drives the real v1→current,
+  v2→current, v3→current, v4→current, v5→current, and v6→current paths
+  with `MigrationTestHelper` using the committed `1..7.json` schemas —
+  including the manual v1 `createSql` variant (which contains a
+  `${TABLE_NAME}` placeholder the helper cannot substitute) — and asserts
+  rows survive and later columns default correctly.
 
 ## Import pipeline (Phases 2–3)
 
@@ -425,6 +431,98 @@ foreground-service notifications are exempt from the runtime notification
 permission, so Listener Mode needs only `RECORD_AUDIO` (runtime) plus the
 manifest `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_MICROPHONE` declarations
 (microphone foreground-service type is mandatory for targetSdk 34+).
+
+## Flashcards & Spaced Review (Phase 8)
+
+**Schema (v7, additive `MIGRATION_6_7`):**
+
+- `flashcard_decks` — one per semester (title, `semesterId`, `createdAt`).
+- `flashcards` — `deckId` (FK CASCADE), `front` / `back` (verbatim only),
+  `sourceChunkId` / `sourceQuestionId` / `sourceListenerSegmentId` (plain
+  columns, no FKs into academic tables), `sourceLabel` (citation string),
+  `contentKey` (deterministic: `chunk:<id>:<term>`, `quiz:<qid>`,
+  `seg:<segId>`), `easeFactor` (initial 2.5), `intervalDays` (initial 0),
+  `dueAt` (SINGLE canonical timestamp; epoch-day boundary), `suspended`,
+  `createdAt`, `updatedAt`. Unique index on `(deckId, contentKey)` with
+  `OnConflictStrategy.IGNORE` for idempotent regeneration.
+- `flashcard_review_sessions` — `deckId` (plain, no FK), `startedAt`,
+  `completedAt`, `status` (`IN_PROGRESS` / `COMPLETED` / `INTERRUPTED`),
+  `reviewedCount`, `retainedCount`; index on `(deckId, status)`.
+- `flashcard_review_events` — `sessionId` (FK CASCADE), `flashcardId`,
+  `rating` (AGAIN/HARD/GOOD/EASY), `reviewedAt`, `previousEaseFactor`,
+  `newEaseFactor`, `previousIntervalDays`, `newIntervalDays`, `retained`
+  (boolean); index on `sessionId`.
+
+Flashcard source references are **plain columns** — no foreign keys into
+academic tables. `dueAt` is the single canonical scheduling timestamp
+(epoch-day boundary, UTC). Identical source + seed ⇒ identical cards.
+
+**Generation (`CardGenerator`) — verbatim only, no LLM/cloud:**
+
+Three bounded semester-scoped pools (DAOs use LIMIT 200):
+- Document chunks (`FlashcardDao.cardChunksOfSemester`): extracts
+  candidate terms from chunk text, builds cloze cards (front = term,
+  back = sentence with term blanked). `contentKey = "chunk:<chunkId>:<term>"`.
+  Citation = `fileName · TYPE · PAGE n`.
+- Quiz mistakes (`FlashcardDao.mistakeQuestionsOfSemester`): questions
+  answered incorrectly in completed sessions (`isCorrect = 0`). Front =
+  prompt, back = correct answer. `contentKey = "quiz:<questionId>"`.
+  Citation = `srcFileName · TYPE · PAGE n`.
+- READY listener segments (`FlashcardDao.readySegmentsOfSemester`):
+  `transcriptStatus = 'ready'` only. Front = transcript, back = verbatim
+  transcript (same text). `contentKey = "seg:<segmentId>"`.
+  Citation = `Lecture segment #n`. PENDING/FAILED segments generate
+  **zero** cards.
+
+Generation is deterministic: identical corpus + seed ⇒ identical cards.
+`buildDeck` is idempotent (reuses existing `flashcard_decks` row,
+`contentKey` dedup on insert).
+
+**Review scheduler (`ReviewScheduler`) — pure, testable, SM-2-lite:**
+
+Ratings: AGAIN / HARD / GOOD / EASY.
+- Ease factor bounds: [1.3, 2.8].
+- Interval: AGAIN → 0; else interval × ease (capped at 36 500 days).
+- `dueAt = dayStart(nowMs) + intervalDays * DAY_MS` (UTC day-boundary).
+- Deterministic: no current-time dependence inside scheduling logic;
+  `now` is passed in. Equal `dueAt` ordered by `id` for determinism.
+
+**Persistence & Resume (`FlashcardRepository`):**
+
+- `grade(card, rating, sessionId, now)` is a single Room `@Transaction`:
+  card schedule update + `ReviewEvent` insert + session counters
+  (`reviewedCount`, `retainedCount`) — all atomic so history can never
+  disagree with card state.
+- `startReview(deckId)` creates `IN_PROGRESS` session; `completeSession`
+  / `interruptSession` close it with final counts.
+- Resume: `latestInProgress(deckId)` + `reviewEvents(sessionId)` →
+  filter queue by already-graded `flashcardId` → `currentIndex = 0`,
+  `reviewedCount = events.size`, `retainedCount = events.count { it.retained }`.
+  Graded cards (non-AGAIN) are excluded from the resumed queue (they are
+  future-due); AGAIN cards remain due and re-appear.
+
+**UI (`FlashcardScreen` — SYSTEM identity):**
+
+States: `LOADING` / `NO_SEMESTER` / `NO_DECKS` / `IDLE` / `REVIEW` /
+`RESULTS` / `ERROR`.
+- Deck: semester, title, total/due/suspended counts, **Start Review**.
+- Review: front → Reveal → back + citation → AGAIN/HARD/GOOD/EASY +
+  Suspend Card.
+- Results: reviewed, retained, retention rate, New Review / Back to Deck.
+
+No fake mastery percentages. Dark futuristic RPG "SYSTEM" aesthetic.
+
+**Tests (251 total, 63 new Phase 8):**
+
+- Migration v6→v7, schema version 7, old data survival
+- Deck/card persistence, deterministic generation, verbatim content
+- `contentKey` deduplication, quiz mistakes, READY listener only
+- PENDING/FAILED exclusion, all 4 ratings, ease bounds, interval math
+- `dueAt`, day boundaries, due ordering, suspension
+- Review event/session persistence, atomic grade, resume, interrupted
+  review, completion/retained counts
+
+---
 
 ## Listener Mode (Phase 7)
 

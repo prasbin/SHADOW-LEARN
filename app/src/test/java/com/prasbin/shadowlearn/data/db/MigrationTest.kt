@@ -72,10 +72,10 @@ class MigrationTest {
         // --- open with the current DB (AutoMigrations 1→2→3 apply) ----------
         val db = Room.databaseBuilder(context, ShadowLearnDatabase::class.java, "migtest1.db")
             .allowMainThreadQueries()
-            .addMigrations(ShadowLearnDatabase.MIGRATION_3_4, ShadowLearnDatabase.MIGRATION_4_5, ShadowLearnDatabase.MIGRATION_5_6)
+            .addMigrations(ShadowLearnDatabase.MIGRATION_3_4, ShadowLearnDatabase.MIGRATION_4_5, ShadowLearnDatabase.MIGRATION_5_6, ShadowLearnDatabase.MIGRATION_6_7)
             .build()
         try {
-            assertEquals(6, db.openHelper.readableDatabase.version)
+            assertEquals(7, db.openHelper.readableDatabase.version)
             val dao = db.academicDao()
             runBlocking {
                 assertEquals(listOf("Year 2"), dao.getYears().map { it.name })
@@ -117,10 +117,10 @@ class MigrationTest {
         // --- open with the current DB (AutoMigration 2→3 applies) ----------
         val db = Room.databaseBuilder(context, ShadowLearnDatabase::class.java, "migtest2.db")
             .allowMainThreadQueries()
-            .addMigrations(ShadowLearnDatabase.MIGRATION_3_4, ShadowLearnDatabase.MIGRATION_4_5, ShadowLearnDatabase.MIGRATION_5_6)
+            .addMigrations(ShadowLearnDatabase.MIGRATION_3_4, ShadowLearnDatabase.MIGRATION_4_5, ShadowLearnDatabase.MIGRATION_5_6, ShadowLearnDatabase.MIGRATION_6_7)
             .build()
         try {
-            assertEquals(6, db.openHelper.readableDatabase.version)
+            assertEquals(7, db.openHelper.readableDatabase.version)
             val dao = db.academicDao()
             runBlocking {
                 assertEquals(listOf("Year 2"), dao.getYears().map { it.name })
@@ -162,10 +162,10 @@ class MigrationTest {
         // --- open with the current DB: AutoMigration 3→... + manual MIGRATION_3_4 ---
         val db = Room.databaseBuilder(context, ShadowLearnDatabase::class.java, "migtest3.db")
             .allowMainThreadQueries()
-            .addMigrations(ShadowLearnDatabase.MIGRATION_3_4, ShadowLearnDatabase.MIGRATION_4_5, ShadowLearnDatabase.MIGRATION_5_6)
+            .addMigrations(ShadowLearnDatabase.MIGRATION_3_4, ShadowLearnDatabase.MIGRATION_4_5, ShadowLearnDatabase.MIGRATION_5_6, ShadowLearnDatabase.MIGRATION_6_7)
             .build()
         try {
-            assertEquals(6, db.openHelper.readableDatabase.version)
+            assertEquals(7, db.openHelper.readableDatabase.version)
             val dao = db.academicDao()
             val extractionDao = db.extractionDao()
             runBlocking {
@@ -209,10 +209,10 @@ class MigrationTest {
         // --- open with the current DB: manual MIGRATION_4_5 applies ---
         val db = Room.databaseBuilder(context, ShadowLearnDatabase::class.java, "migtest4.db")
             .allowMainThreadQueries()
-            .addMigrations(ShadowLearnDatabase.MIGRATION_3_4, ShadowLearnDatabase.MIGRATION_4_5, ShadowLearnDatabase.MIGRATION_5_6)
+            .addMigrations(ShadowLearnDatabase.MIGRATION_3_4, ShadowLearnDatabase.MIGRATION_4_5, ShadowLearnDatabase.MIGRATION_5_6, ShadowLearnDatabase.MIGRATION_6_7)
             .build()
         try {
-            assertEquals(6, db.openHelper.readableDatabase.version)
+            assertEquals(7, db.openHelper.readableDatabase.version)
             val dao = db.academicDao()
             val extractionDao = db.extractionDao()
             val quizDao = db.quizDao()
@@ -271,17 +271,18 @@ class MigrationTest {
         )
         raw.close()
 
-        // --- open with the current DB: manual MIGRATION_5_6 applies ---
+        // --- open with the current DB: manual MIGRATION_5_6 + 6_7 apply ---
         val db = Room.databaseBuilder(context, ShadowLearnDatabase::class.java, "migtest5.db")
             .allowMainThreadQueries()
             .addMigrations(
                 ShadowLearnDatabase.MIGRATION_3_4,
                 ShadowLearnDatabase.MIGRATION_4_5,
-                ShadowLearnDatabase.MIGRATION_5_6
+                ShadowLearnDatabase.MIGRATION_5_6,
+                ShadowLearnDatabase.MIGRATION_6_7
             )
             .build()
         try {
-            assertEquals(6, db.openHelper.readableDatabase.version)
+            assertEquals(7, db.openHelper.readableDatabase.version)
             runBlocking {
                 // Quiz history survives exactly.
                 assertEquals(1, db.quizDao().completedCount())
@@ -294,6 +295,91 @@ class MigrationTest {
                 )
                 assertEquals(1, listenerDao.segments(id).size)
                 assertEquals(1, listenerDao.sessionCount(1))
+            }
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun migrate6ToCurrent_preservesAcademicQuizListenerAndAddsPhase8Tables() {
+        val dbFile = context.getDatabasePath("migtest6.db")
+        buildVersionedDb(dbFile, 6)
+
+        // v6 rows (all prior tables present, flashcard tables absent).
+        val raw = android.database.sqlite.SQLiteDatabase.openOrCreateDatabase(dbFile, null)
+        raw.execSQL("INSERT INTO academic_years (id, name, sortOrder) VALUES (1, 'Year 2', 2)")
+        raw.execSQL("INSERT INTO semesters (id, yearId, name, sortOrder) VALUES (1, 1, 'Semester 1', 1)")
+        raw.execSQL("INSERT INTO modules (id, semesterId, name, code) VALUES (1, 1, 'AI', NULL)")
+        raw.execSQL("INSERT INTO weeks (id, moduleId, weekNumber, title) VALUES (1, 1, 2, 'Week 2')")
+        raw.execSQL(
+            "INSERT INTO academic_files (id, weekId, fileName, filePath, fileType, sha256, classType, " +
+                "relativePath, fileSize, lastModified, indexed, createdAt, updatedAt, sourceFileId) " +
+                "VALUES (1, 1, 'neural.pdf', '/data/x', 'pdf', 'cafe', 'LECTURE', " +
+                "'AI.zip/Week 2/neural.pdf', 10, 5, 1, 1, 2, NULL)"
+        )
+        raw.execSQL(
+            "INSERT INTO document_chunks (id, academicFileId, chunkIndex, pageNumber, text, charCount, createdAt) " +
+                "VALUES (9, 1, 0, 1, 'neural networks learn by gradient descent', 40, 3)"
+        )
+        raw.execSQL(
+            "INSERT INTO quiz_sessions (id, semesterId, seed, totalQuestions, correctCount, " +
+                "xpEarned, streak, status, startedAt, completedAt) " +
+                "VALUES (3, 1, 42, 5, 4, 40, 2, 'completed', 9, 10)"
+        )
+        raw.execSQL(
+            "INSERT INTO listener_sessions (id, semesterId, status, startedAt, completedAt, audioPath, createdAt) " +
+                "VALUES (7, 1, 'completed', 1, 2, '/data/audio.3gp', 3)"
+        )
+        raw.close()
+
+        // --- open with the current DB: manual MIGRATION_6_7 applies ---
+        val db = Room.databaseBuilder(context, ShadowLearnDatabase::class.java, "migtest6.db")
+            .allowMainThreadQueries()
+            .addMigrations(
+                ShadowLearnDatabase.MIGRATION_3_4,
+                ShadowLearnDatabase.MIGRATION_4_5,
+                ShadowLearnDatabase.MIGRATION_5_6,
+                ShadowLearnDatabase.MIGRATION_6_7
+            )
+            .build()
+        try {
+            assertEquals(7, db.openHelper.readableDatabase.version)
+            runBlocking {
+                // Academic + chunk data survives exactly.
+                val file = db.academicDao().findFileByHash("cafe")!!
+                assertEquals(1, db.extractionDao().chunkCountForFile(file.id))
+                // Quiz history survives exactly.
+                assertEquals(1, db.quizDao().completedCount())
+                // Listener history survives exactly.
+                assertEquals(1, db.listenerDao().sessionCount(1))
+                // Flashcard tables exist, start empty, and are fully usable.
+                val dao = db.flashcardDao()
+                assertEquals(0, dao.cardCount(999))
+                val deckId = dao.insertDeck(FlashcardDeck(semesterId = 1, title = "Test Deck"))
+                val cardId = dao.insertCards(
+                    listOf(
+                        Flashcard(
+                            deckId = deckId, front = "q", back = "a",
+                            sourceLabel = "neural.pdf · PDF · PAGE 1",
+                            contentKey = "chunk:1:test"
+                        )
+                    )
+                ).first()
+                assertEquals(1, dao.cardCount(deckId))
+                val sessionId = dao.insertReviewSession(ReviewSession(deckId = deckId))
+                val card = dao.card(cardId)!!
+                dao.grade(
+                    cardId = cardId, ease = 2.5, interval = 1, dueAt = System.currentTimeMillis(),
+                    at = System.currentTimeMillis(),
+                    event = ReviewEvent(
+                        sessionId = sessionId, flashcardId = cardId, rating = "GOOD",
+                        previousEaseFactor = card.easeFactor, newEaseFactor = 2.5,
+                        previousIntervalDays = 0, newIntervalDays = 1, retained = true
+                    ),
+                    sessionId = sessionId, reviewed = 1, retained = 1
+                )
+                assertEquals(1, dao.reviewEvents(sessionId).size)
             }
         } finally {
             db.close()

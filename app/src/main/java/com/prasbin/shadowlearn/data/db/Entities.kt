@@ -1,5 +1,6 @@
 package com.prasbin.shadowlearn.data.db
 
+import com.prasbin.shadowlearn.data.cards.ReviewScheduler
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
@@ -270,6 +271,144 @@ data class ListenerSegment(
         const val TRANSCRIPT_PENDING = "Transcript pending."
     }
 }
+
+/**
+ * Phase 8 flashcard deck: one review collection per semester (the UI builds
+ * and refreshes a single deck per semester; the DAO allows more).
+ *
+ * [semesterId] is a PLAIN historical reference (same rule as quiz/listener
+ * history): academic re-imports must never cascade-delete review material.
+ */
+@Entity(
+    tableName = "flashcard_decks",
+    indices = [Index("semesterId")]
+)
+data class FlashcardDeck(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Semester the deck was built for (snapshot of the active scope). */
+    val semesterId: Long,
+    val title: String,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+/**
+ * Phase 8 flashcard: a verbatim-corpus review card with SM-2-lite schedule.
+ *
+ * Content rule (enforced by CardGenerator, guaranteed by schema): front/back
+ * are VERBATIM strings from the material — never invented. The three source
+ * references are PLAIN nullable columns (never FKs into academic tables),
+ * so cards survive chunk re-extraction and file deletes; [sourceLabel] is
+ * the human citation snapshot shown on every card. [contentKey] is the
+ * deterministic dedup key (`chunk:<id>:<term>` / `quiz:<qid>` /
+ * `seg:<sid>`), unique per deck — rebuilds IGNORE duplicates.
+ *
+ * Scheduling: [dueAt] is the ONE canonical timestamp (UTC-day-start +
+ * interval); there is deliberately no second `nextReview` column.
+ * [suspended] cards never enter the due queue.
+ */
+@Entity(
+    tableName = "flashcards",
+    foreignKeys = [
+        ForeignKey(
+            entity = FlashcardDeck::class,
+            parentColumns = ["id"],
+            childColumns = ["deckId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("deckId"), Index("dueAt"), Index("suspended"), Index(value = ["deckId", "contentKey"], unique = true)]
+)
+data class Flashcard(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val deckId: Long,
+    val front: String,
+    val back: String,
+    /** Chunk the card was derived from (plain column, no FK). */
+    val sourceChunkId: Long? = null,
+    /** Quiz question the card reviews (plain column, no FK). */
+    val sourceQuestionId: Long? = null,
+    /** READY listener segment the card quotes (plain column, no FK). */
+    val sourceListenerSegmentId: Long? = null,
+    /** Human citation snapshot, e.g. "neural.pdf · PDF · PAGE 2". */
+    val sourceLabel: String,
+    /** Deterministic dedup key, unique within the deck. */
+    val contentKey: String,
+    /** SM-2-lite easiness, bounded [1.3, 2.8]. */
+    val easeFactor: Double = ReviewScheduler.INITIAL_EASE,
+    /** SM-2-lite interval in whole days, bounded [0, 36500]. */
+    val intervalDays: Int = 0,
+    /** Canonical scheduling timestamp (UTC-day-start + interval). */
+    val dueAt: Long = 0,
+    val suspended: Boolean = false,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
+/**
+ * Phase 8 review session: one persisted run through a due queue.
+ *
+ * The reviewed card ORDER is not stored as a list — it is re-derived
+ * deterministically (due queue minus already-reviewed events), so resume
+ * needs no extra table. Counts are snapshotted at completion so history
+ * never depends on later card edits; [status] is IN_PROGRESS / COMPLETED /
+ * INTERRUPTED. [deckId] is deliberately PLAIN: deleting a deck must not
+ * erase the review history.
+ */
+@Entity(
+    tableName = "flashcard_review_sessions",
+    indices = [Index("deckId"), Index("status")]
+)
+data class ReviewSession(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Deck reviewed (plain reference — history survives deck deletion). */
+    val deckId: Long,
+    val startedAt: Long = System.currentTimeMillis(),
+    val completedAt: Long? = null,
+    val reviewedCount: Int = 0,
+    val retainedCount: Int = 0,
+    /** IN_PROGRESS / COMPLETED / INTERRUPTED. */
+    val status: String = STATUS_IN_PROGRESS
+) {
+    companion object {
+        const val STATUS_IN_PROGRESS = "IN_PROGRESS"
+        const val STATUS_COMPLETED = "COMPLETED"
+        const val STATUS_INTERRUPTED = "INTERRUPTED"
+    }
+}
+
+/**
+ * Phase 8 review event: one persisted rating. Together with the card's
+ * schedule snapshot (previous → new ease/interval) this is the auditable
+ * review history — never reconstructed from current card state.
+ * [flashcardId] is PLAIN (a deleted card must not erase its events).
+ */
+@Entity(
+    tableName = "flashcard_review_events",
+    foreignKeys = [
+        ForeignKey(
+            entity = ReviewSession::class,
+            parentColumns = ["id"],
+            childColumns = ["sessionId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("sessionId")]
+)
+data class ReviewEvent(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val sessionId: Long,
+    /** Card rated (plain reference). */
+    val flashcardId: Long,
+    /** AGAIN / HARD / GOOD / EASY. */
+    val rating: String,
+    val reviewedAt: Long = System.currentTimeMillis(),
+    val previousEaseFactor: Double,
+    val newEaseFactor: Double,
+    val previousIntervalDays: Int,
+    val newIntervalDays: Int,
+    /** True unless the rating was AGAIN (see ReviewScheduler). */
+    val retained: Boolean
+)
 
 /**
  * Phase 6 quiz session: one row per run of the daily quiz. Created

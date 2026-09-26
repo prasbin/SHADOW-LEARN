@@ -2,6 +2,7 @@ package com.prasbin.shadowlearn.data
 
 import android.content.Context
 import com.prasbin.shadowlearn.data.db.AcademicDao
+import com.prasbin.shadowlearn.data.db.FlashcardDao
 import com.prasbin.shadowlearn.data.db.SearchDao
 import com.prasbin.shadowlearn.data.db.ShadowLearnDatabase
 import com.prasbin.shadowlearn.data.ingest.ExtractionRepository
@@ -88,6 +89,19 @@ object AppContainer {
                 dao = database(context).listenerDao(),
                 audioDir = java.io.File(context.filesDir, "listener")
             ).also { listenerRepo = it }
+        }
+
+    @Volatile
+    private var flashcardRepo: com.prasbin.shadowlearn.data.cards.FlashcardRepository? = null
+
+    fun flashcardDao(context: Context) = database(context).flashcardDao()
+
+    /** Phase 8 flashcards + spaced review: deck generation, due queue, grading. */
+    fun flashcard(context: Context): com.prasbin.shadowlearn.data.cards.FlashcardRepository =
+        flashcardRepo ?: synchronized(this) {
+            flashcardRepo ?: com.prasbin.shadowlearn.data.cards.FlashcardRepository(
+                flashcardDao = database(context).flashcardDao()
+            ).also { flashcardRepo = it }
         }
 
     fun settings(context: Context): SettingsRepository =
