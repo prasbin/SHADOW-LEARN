@@ -72,10 +72,10 @@ class MigrationTest {
         // --- open with the current DB (AutoMigrations 1→2→3 apply) ----------
         val db = Room.databaseBuilder(context, ShadowLearnDatabase::class.java, "migtest1.db")
             .allowMainThreadQueries()
-            .addMigrations(ShadowLearnDatabase.MIGRATION_3_4, ShadowLearnDatabase.MIGRATION_4_5)
+            .addMigrations(ShadowLearnDatabase.MIGRATION_3_4, ShadowLearnDatabase.MIGRATION_4_5, ShadowLearnDatabase.MIGRATION_5_6)
             .build()
         try {
-            assertEquals(5, db.openHelper.readableDatabase.version)
+            assertEquals(6, db.openHelper.readableDatabase.version)
             val dao = db.academicDao()
             runBlocking {
                 assertEquals(listOf("Year 2"), dao.getYears().map { it.name })
@@ -117,10 +117,10 @@ class MigrationTest {
         // --- open with the current DB (AutoMigration 2→3 applies) ----------
         val db = Room.databaseBuilder(context, ShadowLearnDatabase::class.java, "migtest2.db")
             .allowMainThreadQueries()
-            .addMigrations(ShadowLearnDatabase.MIGRATION_3_4, ShadowLearnDatabase.MIGRATION_4_5)
+            .addMigrations(ShadowLearnDatabase.MIGRATION_3_4, ShadowLearnDatabase.MIGRATION_4_5, ShadowLearnDatabase.MIGRATION_5_6)
             .build()
         try {
-            assertEquals(5, db.openHelper.readableDatabase.version)
+            assertEquals(6, db.openHelper.readableDatabase.version)
             val dao = db.academicDao()
             runBlocking {
                 assertEquals(listOf("Year 2"), dao.getYears().map { it.name })
@@ -162,10 +162,10 @@ class MigrationTest {
         // --- open with the current DB: AutoMigration 3→... + manual MIGRATION_3_4 ---
         val db = Room.databaseBuilder(context, ShadowLearnDatabase::class.java, "migtest3.db")
             .allowMainThreadQueries()
-            .addMigrations(ShadowLearnDatabase.MIGRATION_3_4, ShadowLearnDatabase.MIGRATION_4_5)
+            .addMigrations(ShadowLearnDatabase.MIGRATION_3_4, ShadowLearnDatabase.MIGRATION_4_5, ShadowLearnDatabase.MIGRATION_5_6)
             .build()
         try {
-            assertEquals(5, db.openHelper.readableDatabase.version)
+            assertEquals(6, db.openHelper.readableDatabase.version)
             val dao = db.academicDao()
             val extractionDao = db.extractionDao()
             runBlocking {
@@ -209,10 +209,10 @@ class MigrationTest {
         // --- open with the current DB: manual MIGRATION_4_5 applies ---
         val db = Room.databaseBuilder(context, ShadowLearnDatabase::class.java, "migtest4.db")
             .allowMainThreadQueries()
-            .addMigrations(ShadowLearnDatabase.MIGRATION_3_4, ShadowLearnDatabase.MIGRATION_4_5)
+            .addMigrations(ShadowLearnDatabase.MIGRATION_3_4, ShadowLearnDatabase.MIGRATION_4_5, ShadowLearnDatabase.MIGRATION_5_6)
             .build()
         try {
-            assertEquals(5, db.openHelper.readableDatabase.version)
+            assertEquals(6, db.openHelper.readableDatabase.version)
             val dao = db.academicDao()
             val extractionDao = db.extractionDao()
             val quizDao = db.quizDao()
@@ -241,6 +241,59 @@ class MigrationTest {
                 )
                 assertEquals(1, quizDao.questions(sessionId).size)
                 assertEquals(0, quizDao.completedCount())
+            }
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun migrate5ToCurrent_preservesQuizAndAddsPhase7Tables() {
+        val dbFile = context.getDatabasePath("migtest5.db")
+        buildVersionedDb(dbFile, 5)
+
+        // v5 rows (quiz tables present, listener tables absent).
+        val raw = android.database.sqlite.SQLiteDatabase.openOrCreateDatabase(dbFile, null)
+        raw.execSQL("INSERT INTO academic_years (id, name, sortOrder) VALUES (1, 'Year 2', 2)")
+        raw.execSQL("INSERT INTO semesters (id, yearId, name, sortOrder) VALUES (1, 1, 'Semester 1', 1)")
+        raw.execSQL("INSERT INTO modules (id, semesterId, name, code) VALUES (1, 1, 'AI', NULL)")
+        raw.execSQL("INSERT INTO weeks (id, moduleId, weekNumber, title) VALUES (1, 1, 2, 'Week 2')")
+        raw.execSQL(
+            "INSERT INTO academic_files (id, weekId, fileName, filePath, fileType, sha256, classType, " +
+                "relativePath, fileSize, lastModified, indexed, createdAt, updatedAt, sourceFileId) " +
+                "VALUES (1, 1, 'neural.pdf', '/data/x', 'pdf', 'cafe', 'LECTURE', " +
+                "'AI.zip/Week 2/neural.pdf', 10, 5, 1, 1, 2, NULL)"
+        )
+        raw.execSQL(
+            "INSERT INTO quiz_sessions (id, semesterId, seed, totalQuestions, correctCount, " +
+                "xpEarned, streak, status, startedAt, completedAt) " +
+                "VALUES (3, 1, 42, 5, 4, 40, 2, 'completed', 9, 10)"
+        )
+        raw.close()
+
+        // --- open with the current DB: manual MIGRATION_5_6 applies ---
+        val db = Room.databaseBuilder(context, ShadowLearnDatabase::class.java, "migtest5.db")
+            .allowMainThreadQueries()
+            .addMigrations(
+                ShadowLearnDatabase.MIGRATION_3_4,
+                ShadowLearnDatabase.MIGRATION_4_5,
+                ShadowLearnDatabase.MIGRATION_5_6
+            )
+            .build()
+        try {
+            assertEquals(6, db.openHelper.readableDatabase.version)
+            runBlocking {
+                // Quiz history survives exactly.
+                assertEquals(1, db.quizDao().completedCount())
+                // Listener tables exist, start empty, and are fully usable.
+                val listenerDao = db.listenerDao()
+                assertEquals(0, listenerDao.sessionCount(1))
+                val id = listenerDao.insertSession(ListenerSession(semesterId = 1))
+                listenerDao.insertSegment(
+                    ListenerSegment(sessionId = id, position = 0, startedAtMs = 0)
+                )
+                assertEquals(1, listenerDao.segments(id).size)
+                assertEquals(1, listenerDao.sessionCount(1))
             }
         } finally {
             db.close()

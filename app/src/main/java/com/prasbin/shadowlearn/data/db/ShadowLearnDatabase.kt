@@ -27,6 +27,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  *   engine). Purely additive, shipped as a manual MIGRATION_4_5 mirroring
  *   the exported schema (Task #3: quiz reads live chunk text directly from
  *   `document_chunks`, never via FTS, so no index migration is needed).
+ * - v6 (Phase 7): adds `listener_sessions` and `listener_segments`
+ *   (Listener Mode recording foundation). Purely additive, shipped as a
+ *   manual MIGRATION_5_6 mirroring the exported schema. Raw audio lives in
+ *   app-private files, never in SQLite.
  *
  * The FTS virtual index table (`document_fts`, FTS5 where the platform
  * SQLite provides the module, FTS4 with honest fallback otherwise) is NOT
@@ -34,7 +38,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * `data/search/FtsIndex.kt` on first use (see that file and
  * docs/ARCHITECTURE.md for the FTS5→FTS4 story and acceptance evidence).
  *
- * v1→v2 and v2→v3 ship as [AutoMigration]; 3→4 and 4→5 are manual (verified
+ * v1→v2 and v2→v3 ship as [AutoMigration]; 3→4, 4→5 and 5→6 are manual (verified
  * by `MigrationTest` against the committed schemas — every row is preserved).
  *
  * Migration strategy (see docs/ARCHITECTURE.md):
@@ -49,7 +53,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AcademicYear::class, Semester::class, Module::class, Week::class,
         AcademicFile::class, SourceFile::class,
         DocumentChunk::class, ExtractionMeta::class,
-        QuizSession::class, QuizQuestion::class
+        QuizSession::class, QuizQuestion::class,
+        ListenerSession::class, ListenerSegment::class
     ],
     version = ShadowLearnDatabase.DATABASE_VERSION,
     exportSchema = true,
@@ -68,8 +73,10 @@ abstract class ShadowLearnDatabase : RoomDatabase() {
 
     abstract fun quizDao(): QuizDao
 
+    abstract fun listenerDao(): ListenerDao
+
     companion object {
-        const val DATABASE_VERSION = 5
+        const val DATABASE_VERSION = 6
         const val DATABASE_NAME = "shadowlearn.db"
 
         /**
@@ -175,6 +182,53 @@ abstract class ShadowLearnDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v5 → v6: creates `listener_sessions` and `listener_segments`
+         * (Phase 7). Purely additive; listener history references semesters
+         * through a PLAIN column so it survives academic re-imports, and
+         * segments CASCADE only with their own session. DDL mirrors the
+         * exported v6 schema exactly (TableInfo validation); asserted by
+         * MigrationTest.migrate5ToCurrent.
+         */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `listener_sessions` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`semesterId` INTEGER NOT NULL, " +
+                        "`status` TEXT NOT NULL, " +
+                        "`startedAt` INTEGER NOT NULL, " +
+                        "`completedAt` INTEGER, " +
+                        "`audioPath` TEXT, " +
+                        "`createdAt` INTEGER NOT NULL )"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_listener_sessions_semesterId` " +
+                        "ON `listener_sessions` (`semesterId`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_listener_sessions_status` " +
+                        "ON `listener_sessions` (`status`)"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `listener_segments` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`sessionId` INTEGER NOT NULL, " +
+                        "`position` INTEGER NOT NULL, " +
+                        "`startedAtMs` INTEGER NOT NULL, " +
+                        "`durationMs` INTEGER NOT NULL, " +
+                        "`transcript` TEXT NOT NULL, " +
+                        "`transcriptStatus` TEXT NOT NULL, " +
+                        "FOREIGN KEY(`sessionId`) REFERENCES `listener_sessions`(`id`) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE )"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_listener_segments_sessionId` " +
+                        "ON `listener_segments` (`sessionId`)"
+                )
+            }
+        }
+
         @Volatile
         private var instance: ShadowLearnDatabase? = null
 
@@ -187,7 +241,7 @@ abstract class ShadowLearnDatabase : RoomDatabase() {
                 )
                     // No fallbackToDestructiveMigration() by design: if a future
                     // migration is missing, fail loudly instead of wiping data.
-                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
                     .also { instance = it }
             }

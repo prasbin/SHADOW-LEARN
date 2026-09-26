@@ -35,7 +35,7 @@ com.prasbin.shadowlearn
 └── util/                   # formatBytes (unit-tested)
 ```
 
-## Database (v5)
+## Database (v6)
 
 Tables: `academic_years` → `semesters` → `modules` → `weeks` →
 `academic_files`, all with `CASCADE` deletes and FK indices.
@@ -114,10 +114,14 @@ planned.
   likewise verbatim from `5.json`/`4.json` and covered by a
   `migrate4ToCurrent` test; v1→current / v2→current / v3→current
   migrations each pass straight through it.
+- v5→v6 is a **manual** `MIGRATION_5_6` (both listener tables + indices),
+  verbatim from `6.json`/`5.json` and covered by a `migrate5ToCurrent`
+  test that seeds v5 rows (academic + quiz) and asserts they survive with
+  listener tables empty/usable.
 - Migration tests: `DatabaseTest` asserts the current baseline
-  (`schemaVersion_isFive`); `MigrationTest` drives the real v1→current,
-  v2→current, v3→current, and v4→current paths with `MigrationTestHelper`
-  using the committed `1..5.json` schemas — including the manual v1
+  (`schemaVersion_isSix`); `MigrationTest` drives the real v1→current,
+  v2→current, v3→current, v4→current, and v5→current paths with `MigrationTestHelper`
+  using the committed `1..6.json` schemas — including the manual v1
   `createSql` variant (which contains a `${TABLE_NAME}` placeholder the
   helper cannot substitute) — and asserts rows survive and later columns
   default correctly.
@@ -413,7 +417,70 @@ and the Academic tab.
 
 ## Permissions
 
-No runtime permissions requested. File access uses SAF
+No runtime permissions requested except Listener Mode's microphone path.
+File access uses SAF
 (`ActivityResultContracts.OpenDocument`); scoped storage, no broad storage
-permission. `RECORD_AUDIO` / `POST_NOTIFICATIONS` /
-`FOREGROUND_SERVICE_MIC` arrive with Listener Mode and reminders (Phase 7+).
+permission. `POST_NOTIFICATIONS` is deliberately NOT requested:
+foreground-service notifications are exempt from the runtime notification
+permission, so Listener Mode needs only `RECORD_AUDIO` (runtime) plus the
+manifest `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_MICROPHONE` declarations
+(microphone foreground-service type is mandatory for targetSdk 34+).
+
+## Listener Mode (Phase 7)
+
+Recording + transcript-ready session foundation. No speech-to-text exists in
+this phase: segments honestly report `Transcript pending.`
+
+- **Schema (v6):** `listener_sessions` (`semesterId` plain history column,
+  `status` recording/paused/completed/interrupted/failed, `startedAt`,
+  `completedAt`, nullable `audioPath`, `createdAt`; indices on semesterId +
+  status) and `listener_segments` (`sessionId` FK CASCADE — segments belong
+  to their session; `position`, monotonic `startedAtMs`/`durationMs`,
+  `transcript` default `"Transcript pending."`, `transcriptStatus`
+  pending/ready/failed; index on sessionId). `MIGRATION_5_6` is purely
+  additive; Room schema `6.json` committed; migration tests cover
+  v1→current … v5→current. Raw audio NEVER lives in SQLite — only
+  `filesDir/listener/listener_<sessionId>_<wallTs>.m4a` paths.
+- **`ListenerState`** — pure transition table (IDLE → REQUESTING_PERMISSION
+  / RECORDING → PAUSED ⇄ → COMPLETED → IDLE; any active state → ERROR).
+  Deliberately NO IDLE→ERROR edge: a failed *start* never activated a
+  session, so the machine stays IDLE (the failed row carries the failure
+  and a retry is a plain start); only active-session failures move to
+  ERROR. Unit-tested without Android.
+- **`ListenerRecorder`** — the transcription seam: `start/pause/resume/
+  stop/release/maxAmplitude`. Production is MediaRecorder MPEG-4/AAC;
+  tests use a fake + fake clocks. A stop-throw (nothing captured) still
+  persists a completed session with `audioPath` cleared when the file is
+  missing/empty.
+- **`ListenerRepository`** — owns the machine + recorder + segment math
+  (pause closes the span with exact monotonic duration; resume opens the
+  next span at the current offset, so paused gaps never leak into
+  segments). `rehydrate()` marks a process-killed open session
+  `interrupted` (tail span closed with duration 0 = unknown, never
+  fabricated) and returns it for the recovery UI; nothing is deleted.
+- **`ListenerService`** — foreground *holder* only (owns no audio):
+  microphone-type FGS with an ongoing notification + Stop action, started
+  on record, stopped on close/fail (`START_NOT_STICKY` — a resurrected
+  holder with no recorder would be a lie). The ViewModel drives
+  repository + service together around every transition.
+- **`ListenerViewModel` / `ListenerScreen`** — SYSTEM identity; states
+  LOADING / NO_SEMESTER / IDLE / REQUESTING_PERMISSION (rationale,
+  denied, permanently-denied + app-settings link) / RECORDING (timer,
+  pause/stop, segment count, true amplitude meter) / PAUSED /
+  SEGMENTS (session summary + per-segment rows + detail dialog) / ERROR
+  (message + saved-segment recovery). Amplitude shows the real
+  `maxAmplitude` value; when it reads 0 the UI says capture still runs
+  and the file is the source of truth (no fake visualization).
+- **Verifiability** — 23 new tests (state table, repository over real
+  Room incl. exact pause math, failure honesty, scoping, rehydration,
+  no-BLOB-columns, migration v5→current); total 188 green. Emulator
+  session (2026-09-26, CE_Test API 36): install over Phase 6 data ran
+  v5→v6 (`user_version 6`); permission dialog → grant → RECORDING with
+  live timer and real amplitude (1394); FGS verified
+  (`isForeground=true`, microphone type, `listener_recording` channel);
+  pause (46s span) → resume → stop produced 2 PENDING segments with the
+  6.3s paused gap exactly excluded; 677 KB `.m4a` app-private
+  (`-rw-------`); force-stop + relaunch restored IDLE with 1 session;
+  no FATALs. Emulator CANNOT prove: real-mic quality, OEM
+  battery-killer behavior, Bluetooth routing — real device still
+  required for those.

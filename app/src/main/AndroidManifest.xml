@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Phase 1 needs no runtime permissions. RECORD_AUDIO, POST_NOTIFICATIONS,
-         FOREGROUND_SERVICE_* arrive with Listener Mode / reminders (Phase 7+). -->
+    <!-- Phase 7 Listener Mode: microphone capture behind a user-visible
+         foreground service (microphone type, required for targetSdk 34+).
+         POST_NOTIFICATIONS is deliberately NOT requested: foreground-service
+         notifications are exempt from the runtime notification permission. -->
+
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
     <application
         android:allowBackup="true"
@@ -20,6 +26,10 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service
+            android:name=".data.listener.ListenerService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
     </application>
 
 </manifest>

@@ -76,6 +76,20 @@ object AppContainer {
             ).also { quizRepo = it }
         }
 
+    @Volatile
+    private var listenerRepo: com.prasbin.shadowlearn.data.listener.ListenerRepository? = null
+
+    fun listenerDao(context: Context) = database(context).listenerDao()
+
+    /** Phase 7 Listener Mode: recording sessions + transcript-ready segments. */
+    fun listener(context: Context): com.prasbin.shadowlearn.data.listener.ListenerRepository =
+        listenerRepo ?: synchronized(this) {
+            listenerRepo ?: com.prasbin.shadowlearn.data.listener.ListenerRepository(
+                dao = database(context).listenerDao(),
+                audioDir = java.io.File(context.filesDir, "listener")
+            ).also { listenerRepo = it }
+        }
+
     fun settings(context: Context): SettingsRepository =
         settings ?: synchronized(this) {
             settings ?: SettingsRepository(context.applicationContext).also { settings = it }

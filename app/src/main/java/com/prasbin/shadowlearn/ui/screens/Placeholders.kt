@@ -29,10 +29,7 @@ private fun ComingSoon(title: String, phase: String, body: String) {
 
 @Composable fun QuizScreen_forRemoval() = Unit // placeholder removed; real QuizScreen lives in QuizScreen.kt
 
-@Composable fun ListenerScreen() = ComingSoon(
-    "Listener Mode", "Phase 7",
-    "Visible lecture recording with consent notice, transcription, summaries, flashcards and action items."
-)
+// ListenerScreen removed: real ListenerScreen lives in ListenerScreen.kt (Phase 7).
 
 @Composable fun FlashcardsScreen() = ComingSoon(
     "Flashcards", "Phase 8",

@@ -190,6 +190,88 @@ data class DocumentChunk(
 )
 
 /**
+ * Phase 7 listener session: one row per lecture recording. Created
+ * `recording` by ListenerRepository, moved through `paused`, closed as
+ * `completed` on stop — or marked `interrupted`/`failed` when the process
+ * dies or the recorder errors, so an incomplete session is always visible
+ * and never silently half-present.
+ *
+ * [semesterId] is a PLAIN historical reference (same rule as quiz history):
+ * re-importing or deleting academic content must never cascade-delete
+ * listener history. [audioPath] is the app-private recording file
+ * (`filesDir/listener/…`); raw audio bytes are NEVER stored in SQLite.
+ */
+@Entity(
+    tableName = "listener_sessions",
+    indices = [Index("semesterId"), Index("status")]
+)
+data class ListenerSession(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Semester the recording belongs to (snapshot of the active scope). */
+    val semesterId: Long,
+    /** recording / paused / completed / interrupted / failed. */
+    val status: String = STATUS_RECORDING,
+    val startedAt: Long = System.currentTimeMillis(),
+    val completedAt: Long? = null,
+    /** App-private audio file path; null until the recorder file exists. */
+    val audioPath: String? = null,
+    val createdAt: Long = System.currentTimeMillis()
+) {
+    companion object {
+        const val STATUS_RECORDING = "recording"
+        const val STATUS_PAUSED = "paused"
+        const val STATUS_COMPLETED = "completed"
+        const val STATUS_INTERRUPTED = "interrupted"
+        const val STATUS_FAILED = "failed"
+    }
+}
+
+/**
+ * Phase 7 listener segment: one row per continuous recording span inside a
+ * [ListenerSession]. Pause/resume boundaries cut segments; each segment is
+ * the future unit of transcription (Phase 8+).
+ *
+ * [startedAtMs]/[durationMs] are monotonic-clock offsets/durations in
+ * milliseconds (not wall time), so pause math is exact. [transcript] is a
+ * placeholder until real speech-to-text lands — [transcriptStatus] says so
+ * honestly (`pending` / `ready` / `failed`); Phase 7 never fabricates
+ * transcript text.
+ */
+@Entity(
+    tableName = "listener_segments",
+    foreignKeys = [
+        ForeignKey(
+            entity = ListenerSession::class,
+            parentColumns = ["id"],
+            childColumns = ["sessionId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("sessionId")]
+)
+data class ListenerSegment(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val sessionId: Long,
+    /** 0-based order within the session. */
+    val position: Int,
+    /** Monotonic-clock offset from session start when this span began. */
+    val startedAtMs: Long,
+    /** Span length in ms; 0 while the span is still open. */
+    val durationMs: Long = 0,
+    /** Transcript text; Phase 7 always writes the pending placeholder. */
+    val transcript: String = TRANSCRIPT_PENDING,
+    /** pending / ready / failed. */
+    val transcriptStatus: String = STATUS_PENDING
+) {
+    companion object {
+        const val STATUS_PENDING = "pending"
+        const val STATUS_READY = "ready"
+        const val STATUS_FAILED = "failed"
+        const val TRANSCRIPT_PENDING = "Transcript pending."
+    }
+}
+
+/**
  * Phase 6 quiz session: one row per run of the daily quiz. Created
  * `in_progress` by QuizRepository, marked `completed` with final totals when
  * the last question is answered. [seed] fixes the deterministic generation

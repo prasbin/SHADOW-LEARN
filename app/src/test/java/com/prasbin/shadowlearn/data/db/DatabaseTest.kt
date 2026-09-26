@@ -41,9 +41,22 @@ class DatabaseTest {
     }
 
     @Test
-    fun schemaVersion_isFive() {
-        assertEquals(5, ShadowLearnDatabase.DATABASE_VERSION)
-        assertEquals(5, db.openHelper.readableDatabase.version)
+    fun schemaVersion_isSix() {
+        assertEquals(6, ShadowLearnDatabase.DATABASE_VERSION)
+        assertEquals(6, db.openHelper.readableDatabase.version)
+    }
+
+    @Test
+    fun listenerTables_existAndAcceptRows() = runBlocking {
+        val dao = db.listenerDao()
+        val id = dao.insertSession(ListenerSession(semesterId = 7))
+        dao.insertSegment(ListenerSegment(sessionId = id, position = 0, startedAtMs = 0))
+        assertEquals(1, dao.sessionCount(7))
+        assertEquals(0, dao.sessionCount(8))
+        val stored = dao.session(id)!!
+        assertEquals(ListenerSession.STATUS_RECORDING, stored.status)
+        assertEquals(1, dao.segments(id).size)
+        assertEquals(ListenerSegment.STATUS_PENDING, dao.segments(id)[0].transcriptStatus)
     }
 
     @Test

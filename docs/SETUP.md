@@ -49,7 +49,7 @@ E:\Desktop\AGENTS-UP` v2.0\.tools\gradle-8.13\bin\gradle.bat wrapper --gradle-ve
 ```powershell
 .\gradlew.bat assembleDebug          # APK: app\build\outputs\apk\debug\app-debug.apk
 .\gradlew.bat testDebugUnitTest      # unit tests (Robolectric Room tests included)
-.\gradlew.bat testDebugUnitTest assembleDebug   # full Phase 6 check (165 tests)
+.\gradlew.bat testDebugUnitTest assembleDebug   # full Phase 7 check (188 tests)
 .\gradlew.bat :app:installDebug      # needs a device/emulator on adb
 ```
 
@@ -152,4 +152,23 @@ this machine has triggered flaky `ChildProcess.kill` aborts.
   rows (XP 140, 2 completed sessions), no crash. On-device sqlite3
   (via stdin pipe — inline `adb shell` quoting breaks on this box)
   confirmed both `quiz_sessions` rows and per-question persistence.
+- Phase 7 emulator session (2026-09-26, `CE_Test`, API 36, windowless,
+  current `app-debug.apk` installed over Phase 6 data): install ran the
+  v5→v6 migration (`user_version 6`, quiz rows intact). Listener tab:
+  IDLE renders with live scope; START → rationale → system permission
+  dialog → grant → RECORDING with live timer + real amplitude readout
+  (1394/32767 on the emulator mic). `dumpsys` verified the foreground
+  service (`isForeground=true`, microphone type, `listener_recording`
+  channel, Stop action). PAUSE (46 s) → RESUME → STOP → session
+  COMPLETED with 2 PENDING segments; on-device sqlite3 shows
+  `(0, 0 ms, 46853 ms)` + `(1, 53164 ms, 7336 ms)` — the 6.3 s paused
+  gap exactly excluded — plus a 677 KB app-private `.m4a`
+  (`-rw-------`). Segment detail dialog shows “Transcript pending.”
+  with the no-STT disclaimer. `am force-stop` + relaunch → IDLE with
+  1 persisted session, no FATALs. Debugging notes: `adb shell
+  uiautomator dump` intermittently returns “null root node” while a
+  permission dialog animates (retry the dump); inline `adb shell`
+  quoting mangles sqlite3 statements on this box — pipe SQL via stdin
+  instead. Emulator CANNOT prove real-mic quality, OEM battery-killer
+  behavior, or Bluetooth routing.
 - **REAL DEVICE TESTING: NOT YET PERFORMED.**

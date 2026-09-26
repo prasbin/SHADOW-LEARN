@@ -5,14 +5,15 @@ Personal offline-first university learning OS (native Android).
 - Package: `com.prasbin.shadowlearn`
 - UI: Jetpack Compose (Material 3, dark futuristic theme)
 - Data: Room (SQLite) + DataStore + Storage Access Framework
-- Status: **Phase 6 — rule-based Daily Quiz engine.** Text, OOXML/.docx/
+- Status: **Phase 7 — Listener Mode foundation.** Text, OOXML/.docx/
   .pptx, and PDF extraction with per-file, per-page chunks and an
   incremental FTS index (FTS5 auto-falls back to FTS4), fast honest
-  academic search, and now a fully offline quiz engine over the current
-  semester: true/false, fill-the-blank and multiple choice generated from
-  verbatim excerpts, every option a real phrase from the material, every
-  question citing its source. No AI, Listener Mode, or similarity
-  checking yet (Phase 7+).
+  academic search, a fully offline quiz engine over the current
+  semester (true/false, fill-the-blank and multiple choice generated
+  from verbatim excerpts, every option a real phrase from the material,
+  every question citing its source), and now lecture recording with
+  transcript-ready sessions/segments (speech-to-text NOT yet
+  implemented). No AI or similarity checking yet (Phase 8+).
 
 ## Features (Phase 3)
 
@@ -97,7 +98,7 @@ Personal offline-first university learning OS (native Android).
 
 ## Features (Phase 6)
 
-- **Rule-based Daily Quiz, fully offline** (Room v5: `quiz_sessions` +
+- **Rule-based Daily Quiz, fully offline** (Room v5 tables `quiz_sessions` +
   `quiz_questions`, `MIGRATION_4_5`). A quiz is generated deterministically
   from the current semester's chunk pool:
   - `QuestionGenerator` — three question kinds from one pool:
@@ -128,16 +129,46 @@ Personal offline-first university learning OS (native Android).
   are testable without Android; repository/DAO are exercised over a real
   Room + sqlite-jdbc engine.
 
+## Features (Phase 7)
+
+- **Listener Mode foundation, fully offline** (Room v6 tables
+  `listener_sessions` + `listener_segments`, `MIGRATION_5_6`).
+  Lecture recording with transcript-ready segments; **speech-to-text is
+  NOT implemented in this phase** — segments honestly report
+  “Transcript pending.”
+  - `ListenerState` — explicit deterministic machine (IDLE →
+    REQUESTING_PERMISSION / RECORDING ⇄ PAUSED → COMPLETED → IDLE;
+    active states → ERROR). No IDLE→ERROR edge by design: a failed
+    *start* never activated a session, so the machine stays IDLE and a
+    retry is a plain start (the failed row carries the failure).
+  - `ListenerRecorder` — the transcription seam (`start/pause/resume/
+    stop/release/maxAmplitude`); production is MediaRecorder MPEG-4/AAC.
+  - `ListenerRepository` — owns the machine + recorder + exact monotonic
+    segment math (paused gaps never leak into segments); `rehydrate()`
+    marks a process-killed session `interrupted` without deleting
+    anything. Raw audio lives in app-private
+    `filesDir/listener/listener_<id>_<ts>.m4a`, never in SQLite.
+  - `ListenerService` — microphone-type foreground service with an
+    ongoing notification + Stop action (owns no audio itself).
+    Manifest: `RECORD_AUDIO` (runtime) + `FOREGROUND_SERVICE` /
+    `FOREGROUND_SERVICE_MICROPHONE`; `POST_NOTIFICATIONS` deliberately
+    not requested (FGS notifications are exempt).
+- Listener UI in the SYSTEM identity: permission rationale/denied/
+  permanently-denied (+ app-settings link) states, live timer, true
+  amplitude meter, pause/resume/stop-finish, session summary, segment
+  list with time ranges + PENDING chips, and a detail dialog labeled
+  “Transcript pending.”
+
 ## Build
 
 Requirements and exact commands: see [docs/SETUP.md](docs/SETUP.md).
 Architecture and database / ingest / extraction pipeline: see
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-Status-line: `.\gradlew.bat testDebugUnitTest assembleDebug` (**165 unit
+Status-line: `.\gradlew.bat testDebugUnitTest assembleDebug` (**188 unit
 tests**, including Robolectric Room migrations + end-to-end ingest,
-reconciliation, extraction, Search, and the quiz engine over a real FTS4
-index).
+reconciliation, extraction, Search, the quiz engine over a real FTS4
+index, and Listener Mode sessions/segments).
 
 ## Testing status
 
@@ -218,6 +249,23 @@ index).
   `completedQuizRemainsReviewableAfterCorpusDeletion`, proving a
   completed session stays fully reviewable after its academic rows and
   chunks are deleted).
+- **Emulator verification performed — Phase 7 Listener Mode**
+  (`CE_Test`, API 36, current build over Phase 6 data): install ran
+  v5→v6 (`user_version 6`, quiz rows intact); Listener IDLE renders in
+  the SYSTEM identity with the live semester scope; START → permission
+  rationale → system dialog → grant → RECORDING with a live timer and
+  real amplitude (1394/32767 on the emulator mic); foreground service
+  verified (`isForeground=true`, microphone type, `listener_recording`
+  channel, Stop action); PAUSE (46 s span) → RESUME → STOP produced
+  2 PENDING segments with the 6.3 s paused gap exactly excluded;
+  677 KB `.m4a` stored app-private (`-rw-------`); segment detail shows
+  “Transcript pending.” with the no-STT-yet disclaimer; `am force-stop`
+  + relaunch restored IDLE with 1 persisted session; no FATALs.
+  Emulator CANNOT prove real-mic quality, OEM battery-killer behavior,
+  or Bluetooth routing — those need a physical device.
+  Unit suite for this pass: **188/188** (adds 23 Listener tests:
+  state table, repository lifecycle incl. exact pause math, failure
+  honesty, scoping, rehydration, no-BLOB-columns, v5→v6 migration).
 
 ## Current limitations
 
@@ -225,11 +273,12 @@ index).
   until the progression engine (quiz XP/streak are persisted in the quiz
   tables already).
 - Export / Import of saved archives is not yet implemented.
-- Cards, Listen tabs remain placeholders.
+- Cards tab remains a placeholder; Listen is recording-only (no
+  speech-to-text, no summaries — segments report “Transcript pending.”).
 - Search covers the current semester's indexed *chunks* only; unindexed
   file types (`.rtf`, OLE `.doc`, garbage files) are explained per file by
   the extraction metadata and never silently “match nothing”.
 
 ## Next
 
-Phase 7 — the ONE next step (see the Phase 6 hand-off prompt).
+Phase 8 — the ONE next step (see the Phase 7 hand-off prompt).
