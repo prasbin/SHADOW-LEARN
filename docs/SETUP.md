@@ -49,7 +49,7 @@ E:\Desktop\AGENTS-UP` v2.0\.tools\gradle-8.13\bin\gradle.bat wrapper --gradle-ve
 ```powershell
 .\gradlew.bat assembleDebug          # APK: app\build\outputs\apk\debug\app-debug.apk
 .\gradlew.bat testDebugUnitTest      # unit tests (Robolectric Room tests included)
-.\gradlew.bat testDebugUnitTest assembleDebug   # full Phase 5 check (127 tests)
+.\gradlew.bat testDebugUnitTest assembleDebug   # full Phase 6 check (165 tests)
 .\gradlew.bat :app:installDebug      # needs a device/emulator on adb
 ```
 
@@ -141,5 +141,15 @@ this machine has triggered flaky `ChildProcess.kill` aborts.
   beyond a few keystrokes were replaced by driving the production query
   path directly against the device index (`forward* network*` → only the
   PDF chunk containing both terms; `print*` → the `.py` chunk). Real-phone
-  keyboard/IME behavior is untested.
+   keyboard/IME behavior is untested.
+- Phase 6 emulator re-verification (2026-09-26, `CE_Test`, API 36,
+  windowless, current `app-debug.apk` over existing Phase 6 data):
+  Quiz idle → START QUIZ → 10 questions answered via `input tap`
+  (all three kinds; one deliberate wrong answer) → INCORRECT/CORRECT
+  feedback with `SOURCE file · PAGE n` + verbatim excerpt each time →
+  RESULTS `4/10 · 40% · +40 XP · STREAK 2 DAYS` with per-question
+  review rows → `am force-stop` + relaunch → idle restored from real
+  rows (XP 140, 2 completed sessions), no crash. On-device sqlite3
+  (via stdin pipe — inline `adb shell` quoting breaks on this box)
+  confirmed both `quiz_sessions` rows and per-question persistence.
 - **REAL DEVICE TESTING: NOT YET PERFORMED.**

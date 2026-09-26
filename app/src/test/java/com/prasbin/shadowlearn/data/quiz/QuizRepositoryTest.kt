@@ -248,6 +248,41 @@ class QuizRepositoryTest {
         assertEquals(0, repo.indexedChunkCount(s3))
     }
 
+    @Test
+    fun completedQuizRemainsReviewableAfterCorpusDeletion() = runBlocking {
+        val quiz = startQuiz(3, 21)
+        repeat(quiz.total) { i ->
+            val q = quiz.questions[i]
+            repo.answer(q.id, q.correctAnswer)
+        }
+        val results = repo.complete(quiz.sessionId)
+        val snapshot = results.questions.map {
+            Triple(it.prompt, it.correctAnswer, it.source)
+        }
+        // Simulate a destructive re-import: wipe every academic row + chunk.
+        val dao = db.academicDao()
+        val extraction = db.extractionDao()
+        db.quizDao().chunksOfSemester(s1).map { it.academicFileId }.distinct()
+            .forEach { fileId ->
+                extraction.deleteChunksForFile(fileId)
+                extraction.deleteMeta(fileId)
+                dao.deleteFile(fileId)
+            }
+        assertEquals(0, repo.indexedChunkCount(s1))
+        // The completed session must stay fully reviewable from snapshots.
+        val stored = db.quizDao().session(quiz.sessionId)!!
+        assertEquals("completed", stored.status)
+        val rows = db.quizDao().questions(quiz.sessionId)
+        assertEquals(snapshot.size, rows.size)
+        rows.forEachIndexed { i, row ->
+            assertEquals(snapshot[i].first, row.prompt)
+            assertEquals(snapshot[i].second, row.correctAnswer)
+            assertEquals(snapshot[i].third.fileName, row.srcFileName)
+            assertEquals(snapshot[i].third.excerpt, row.srcExcerpt)
+            assertEquals(results.questions[i].userAnswer, row.userAnswer)
+        }
+    }
+
     // --- streak math (pure) ---
 
     private val day = 24L * 60 * 60 * 1000

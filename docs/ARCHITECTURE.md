@@ -389,7 +389,7 @@ layers behind `QuizRepository` — the only surface the screen talks to.
   `SCORE x/y`), feedback card + citation, results card (`n/m`, `%`,
   XP, STREAK, per-question review rows, NEW QUIZ).
 - **Verifiability** — planner/generator are pure-JVM tested;
-  repository/DAO run over real Room + sqlite-jdbc; full 36-test quiz
+  repository/DAO run over real Room + sqlite-jdbc; full 37-test quiz
   suite is deterministic (frozen seeds). On-device DB inspection path:
   `run-as` + sqlite3 = `SELECT … FROM quiz_sessions/quiz_questions`.
 

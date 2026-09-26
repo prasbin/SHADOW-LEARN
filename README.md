@@ -134,7 +134,7 @@ Requirements and exact commands: see [docs/SETUP.md](docs/SETUP.md).
 Architecture and database / ingest / extraction pipeline: see
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-Status-line: `.\gradlew.bat testDebugUnitTest assembleDebug` (**164 unit
+Status-line: `.\gradlew.bat testDebugUnitTest assembleDebug` (**165 unit
 tests**, including Robolectric Room migrations + end-to-end ingest,
 reconciliation, extraction, Search, and the quiz engine over a real FTS4
 index).
@@ -199,9 +199,25 @@ index).
   `quiz_questions.userAnswer == correctAnswer` with `isCorrect=1`, TF
   rows persisting `optionsJson=NULL` (UI renders the fixed TRUE/FALSE
   pair) and fill/MCQ rows persisting the verbatim option list. (The
-  empty-state guard was also exercised: a single 1-chunk import could not
-  build a quiz → honest “add more material” state; Dashboard XP/level/
-  streak stay honest zeros until the progression engine.)
+   empty-state guard was also exercised: a single 1-chunk import could not
+   build a quiz → honest “add more material” state; Dashboard XP/level/
+   streak stay honest zeros until the progression engine.)
+- **Emulator re-verification (2026-09-26, `CE_Test`, API 36, current
+  build):** installed `app-debug.apk` over the existing Phase 6 data and
+  drove a second full 10-question session via `input tap` + `uiautomator
+  dump`: Q1 answered wrong on purpose → INCORRECT feedback with
+  `Correct answer: …`, `SOURCE notes.docx · PAGE 1` and the verbatim
+  excerpt; SCORE tracked 0/1→3/4→4/10 across FILL/MCQ/TRUE-FALSE
+  questions; RESULTS rendered `4 / 10 · 40% · +40 XP · STREAK 2 DAYS`
+  with per-question review rows and citations. `am force-stop` +
+  relaunch: cold start clean, Quiz idle restored from real rows
+  (SCORE 4/10, BEST 10, XP 140, STREAK 2 DAYS, 2 completed sessions).
+  On-device sqlite3 confirmed `quiz_sessions (10,4,40,2,completed)` and
+  per-question `userAnswer`/`isCorrect` persistence. No FATALs.
+  Unit suite for this pass: **165/165** (adds
+  `completedQuizRemainsReviewableAfterCorpusDeletion`, proving a
+  completed session stays fully reviewable after its academic rows and
+  chunks are deleted).
 
 ## Current limitations
 
