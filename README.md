@@ -5,8 +5,9 @@ Personal offline-first university learning OS (native Android).
 - Package: `com.prasbin.shadowlearn`
 - UI: Jetpack Compose (Material 3, dark futuristic theme)
 - Data: Room (SQLite) + DataStore + Storage Access Framework
-- Status: **Phase 9 - Progression engine.** XP/level/streak derived from
-  persisted quiz + flashcard activity. Text, OOXML/.docx/
+- Status: **Phase 10 - Listener transcription seam.** On-device STT
+  abstraction over recorded sessions (verbatim READY or honest FAILED,
+  never fabricated). Text, OOXML/.docx/
   .pptx, and PDF extraction with per-file, per-page chunks and an
   incremental FTS index (FTS5 auto-falls back to FTS4), fast honest
   academic search, a fully offline quiz engine over the current
@@ -214,6 +215,44 @@ Personal offline-first university learning OS (native Android).
     40-XP quiz row - 68 XP, 68/100, streak 2. Force-stop + relaunch
     kept every value. No FATALs.
 
+## Features (Phase 10)
+
+- **Listener transcription seam, fully offline** (no new tables, no
+  migration - Room stays v7). `Transcriber` interface mirrors the
+  `ListenerRecorder` seam: the repository only talks to the seam, so a
+  bundled on-device engine can replace the default without touching
+  session/segment logic.
+  - `ListenerTranscriptionRepository.transcribeSession(sessionId)`:
+    resolves audio through the parent `ListenerSession.audioPath`
+    (segments carry no audio path of their own), transcribes each
+    `pending` segment in position order, persists READY with verbatim
+    text or FAILED with an honest reason via guarded
+    `ListenerDao.setTranscript` (refuses non-pending rows). READY/FAILED
+    rows are never retried or overwritten - repeated calls are
+    idempotent. Missing session/audio, empty audio, engine failure, and
+    transcriber throws all resolve to honest FAILED rows, never crashes.
+  - Production default `UnavailableTranscriber` reports no on-device
+    engine / unsupported language instead of fabricating text (Android's
+    platform recognizer is absent on CE_Test and takes no stored file;
+    bundling a full engine was deliberately not shipped).
+  - Listener UI: explicit per-session TRANSCRIBE button (user-initiated
+    only, never background), TRANSCRIBING progress, READY/PENDING/FAILED
+    counts, per-row status chips, honest result messages. READY rows
+    flow into Phase 8 `CardGenerator.fromSegments` unchanged;
+    PENDING/FAILED still feed zero cards.
+  - **20 new Phase 10 tests** (`TranscriptionTest` over real Room with a
+    fake engine: verbatim persistence, pending->ready, honest failure
+    reasons, missing/empty audio, unavailable production transcriber,
+    idempotence, scoping, no-BLOB storage, ready->cards integration).
+    Total: **305 green**.
+  - **Emulator CE_Test API 36 verified**: install over Phase 9 data
+    (`user_version` stays 7, all rows survive). Recorded a real 2-minute
+    session (2 segments, live amplitude), stopped, tapped TRANSCRIBE -
+    both segments FAILED honestly ("No on-device speech engine is
+    installed. Audio stays on the device."), UI + DB agree, seeded
+    session untouched. Force-stop + relaunch preserved rows. Cards tab
+    intact (deck 5, due 5). No app FATALs.
+
 ## Features (Phase 7)
 
 - **Listener Mode foundation, fully offline** (Room v6 tables
@@ -250,11 +289,12 @@ Requirements and exact commands: see [docs/SETUP.md](docs/SETUP.md).
 Architecture and database / ingest / extraction pipeline: see
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-Status-line: `.\gradlew.bat testDebugUnitTest assembleDebug` (**285 unit
+Status-line: `.\gradlew.bat testDebugUnitTest assembleDebug` (**305 unit
 tests**, including Robolectric Room migrations + end-to-end ingest,
 reconciliation, extraction, Search, the quiz engine over a real FTS4
 index, Listener Mode sessions/segments, Flashcards/SM-2-lite
-spaced review, and the Phase 9 progression engine).
+spaced review, the Phase 9 progression engine, and Phase 10
+listener transcription).
 
 ## Testing status
 
@@ -390,6 +430,20 @@ spaced review, and the Phase 9 progression engine).
   weights, streak table incl. mixed quiz+card days, repository
   aggregation over real Room incl. empty DB, in-progress exclusion,
   and double-read idempotence).
+- **Emulator verification performed - Phase 10 Transcription**
+  (`CE_Test`, API 36, current build over Phase 9 data, no migration,
+  `user_version` stays 7): recorded a real 2-minute session (2
+  segments, live amplitude 141), stopped, tapped TRANSCRIBE - both
+  segments FAILED honestly ("No on-device speech engine is installed.
+  Audio stays on the device."), UI summary + per-row reasons + DB
+  agree, seeded session untouched. Force-stop + relaunch preserved
+  rows; Cards tab intact (deck 5, due 5). No app FATALs (only the
+  pre-existing unrelated `droid.bluetooth` daemon abort).
+  Unit suite for this pass: **305/305** (adds 20 Phase 10 tests:
+  verbatim READY persistence, pending->ready, honest failure reasons,
+  missing/empty audio, unavailable production transcriber, no
+  overwrite/retry, ordering, scoping, no-BLOB storage, ready->cards
+  integration, idempotence).
 
 ## Current limitations
 
@@ -397,14 +451,15 @@ spaced review, and the Phase 9 progression engine).
   persisted quiz + flashcard activity; Progress % stays an honest 0 until
   a progression rule needs it.
 - Export / Import of saved archives is not yet implemented.
-- Listen is recording-only (no
-  speech-to-text, no summaries â€” segments report â€œTranscript pending.â€).
+- Listen records + transcribes via an explicit per-session pass, but no
+  real on-device speech engine is bundled yet: without one, segments
+  report the honest unavailability reason instead of invented text.
 - Search covers the current semester's indexed *chunks* only; unindexed
   file types (`.rtf`, OLE `.doc`, garbage files) are explained per file by
   the extraction metadata and never silently â€œmatch nothingâ€.
 
 ## Next
 
-Phase 10 - the ONE next step (see the Phase 9 hand-off prompt).
+Phase 11 - the ONE next step (see the Phase 10 hand-off prompt).
 
 

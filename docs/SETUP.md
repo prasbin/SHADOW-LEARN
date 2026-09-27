@@ -49,7 +49,7 @@ E:\Desktop\AGENTS-UP` v2.0\.tools\gradle-8.13\bin\gradle.bat wrapper --gradle-ve
 ```powershell
 .\gradlew.bat assembleDebug          # APK: app\build\outputs\apk\debug\app-debug.apk
 .\gradlew.bat testDebugUnitTest      # unit tests (Robolectric Room tests included)
-.\gradlew.bat testDebugUnitTest assembleDebug   # full Phase 9 check (285 tests)
+.\gradlew.bat testDebugUnitTest assembleDebug   # full Phase 10 check (305 tests)
 .\gradlew.bat :app:installDebug      # needs a device/emulator on adb
 ```
 
@@ -197,4 +197,13 @@ this machine has triggered flaky `ChildProcess.kill` aborts.
   preinstalled `com.shadowbody.app` repeatedly stole window focus and
   was disabled (`pm disable-user`) before driving taps; `uiautomator
   dump` still returns "null root node" transiently (retry the dump).
+- Phase 10 emulator session (2026-09-27, `CE_Test`, API 36, current
+  `app-debug.apk` installed over Phase 9 data, no migration,
+  `user_version` stays 7, all rows survive): recorded a real ~2-minute
+  session (2 segments, live amplitude 141), stopped, tapped TRANSCRIBE
+  - both segments FAILED honestly ("No on-device speech engine is
+  installed. Audio stays on the device."), UI summary + per-row
+  reasons + DB agree, seeded session untouched. Force-stop + relaunch
+  preserved rows; Cards tab intact (deck 5, due 5). No app FATALs
+  (only the pre-existing unrelated `droid.bluetooth` daemon abort).
 - **REAL DEVICE TESTING: NOT PERFORMED.**

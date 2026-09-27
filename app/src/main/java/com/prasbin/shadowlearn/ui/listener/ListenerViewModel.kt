@@ -16,6 +16,7 @@ import com.prasbin.shadowlearn.data.listener.ListenerRepository
 import com.prasbin.shadowlearn.data.listener.ListenerService
 import com.prasbin.shadowlearn.data.listener.ListenerState
 import com.prasbin.shadowlearn.data.listener.RecoveredSession
+import com.prasbin.shadowlearn.data.listener.SessionTranscription
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +26,14 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.zip
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+
+/** Explicit transcription state of the Listener tab (Phase 10). */
+enum class TranscriptionUi {
+    IDLE,
+    TRANSCRIBING,
+    DONE,
+    FAILED
+}
 
 /** Distinct screen states of the Listener tab (see ListenerScreen). */
 enum class ListenerUiKind {
@@ -61,6 +70,10 @@ data class ListenerUiState(
     val permissionPermanentlyDenied: Boolean = false,
     val selectedSegment: ListenerSegment? = null,
     val sessionCount: Int = 0,
+    /** Phase 10 transcription progress for the session under review. */
+    val transcription: TranscriptionUi = TranscriptionUi.IDLE,
+    /** Human summary of the last transcription pass (counts / reason). */
+    val transcriptionMessage: String? = null,
     val error: String? = null
 )
 
@@ -76,6 +89,7 @@ class ListenerViewModel(context: Context) : ViewModel() {
     private val dao = AppContainer.dao(app)
     private val settings = AppContainer.settings(app)
     private val repo: ListenerRepository = AppContainer.listener(app)
+    private val transcriptionRepo = AppContainer.transcription(app)
 
     private val _state = MutableStateFlow(ListenerUiState())
     val state: StateFlow<ListenerUiState> = _state.asStateFlow()
@@ -215,6 +229,48 @@ class ListenerViewModel(context: Context) : ViewModel() {
         _state.value = _state.value.copy(selectedSegment = segment)
     }
 
+    /**
+     * Phase 10 explicit transcription pass over the session under review.
+     * User-initiated only (battery policy: never in the background) — the
+     * repository flips `pending` segments to READY/FAILED, then the screen
+     * reloads the rows. READY transcripts feed Phase 8 cards unchanged.
+     */
+    fun transcribeCurrentSession() {
+        val s = _state.value
+        if (s.kind != ListenerUiKind.SEGMENTS || s.reviewSessionId == 0L) return
+        if (s.transcription == TranscriptionUi.TRANSCRIBING) return
+        viewModelScope.launch {
+            _state.value = _state.value.copy(
+                transcription = TranscriptionUi.TRANSCRIBING,
+                transcriptionMessage = null
+            )
+            val id = _state.value.reviewSessionId
+            val outcome = runCatching { transcriptionRepo.transcribeSession(id) }.getOrElse {
+                _state.value = _state.value.copy(
+                    transcription = TranscriptionUi.FAILED,
+                    transcriptionMessage = "Transcription failed: ${it.message ?: "unknown error"}."
+                )
+                return@launch
+            }
+            val segs = runCatching { repo.segments(id) }.getOrDefault(_state.value.segments)
+            _state.value = _state.value.copy(
+                transcription = if (outcome.failed > 0 && outcome.ready == 0 && outcome.attempted > 0)
+                    TranscriptionUi.FAILED else TranscriptionUi.DONE,
+                transcriptionMessage = transcriptionSummary(outcome),
+                segments = segs,
+                segmentCount = segs.size
+            )
+        }
+    }
+
+    private fun transcriptionSummary(outcome: SessionTranscription): String = when {
+        outcome.attempted == 0 -> "Nothing to transcribe — no pending segments."
+        outcome.ready > 0 && outcome.failed == 0 ->
+            if (outcome.ready == 1) "Transcribed 1 segment." else "Transcribed ${outcome.ready} segments."
+        outcome.ready > 0 -> "Transcribed ${outcome.ready}; ${outcome.failed} unavailable."
+        else -> "No transcript produced — the on-device engine is unavailable. Audio stays on the device."
+    }
+
     fun newRecording() {
         viewModelScope.launch {
             runCatching { repo.reset() }
@@ -235,7 +291,9 @@ class ListenerViewModel(context: Context) : ViewModel() {
                 sessionCount = count,
                 error = null,
                 permissionDenied = false,
-                permissionPermanentlyDenied = false
+                permissionPermanentlyDenied = false,
+                transcription = TranscriptionUi.IDLE,
+                transcriptionMessage = null
             )
         }
     }

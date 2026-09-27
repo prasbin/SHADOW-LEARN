@@ -566,10 +566,51 @@ derived from existing rows, so the engine can never drift from history.
 
 ---
 
+## Listener Transcription (Phase 10)
+
+**No schema change** - Room stays v7, no migration. Transcription only
+writes the existing `transcript` / `transcriptStatus` columns; segments
+carry no audio path of their own.
+
+- **Seam:** `Transcriber` (`data/listener/`) mirrors `ListenerRecorder` —
+  `transcribe(audioFile, languageTag?)` returns `Ready(verbatim)` or
+  `Failed(reason)`, never invented text. Production default
+  `UnavailableTranscriber` reports no on-device engine / unsupported
+  language honestly (Android's platform recognizer is absent on CE_Test
+  and takes no stored file; bundling a full engine was deliberately not
+  shipped). A real engine drops in behind the seam untouched.
+- **Audio resolution:** segments resolve audio through the parent
+  `ListenerSession.audioPath` (app-private `filesDir/listener/…`).
+  Raw bytes are never read into SQLite; no BLOB columns exist.
+- **`ListenerTranscriptionRepository.transcribeSession(sessionId)`** —
+  the ONE entry point: loads pending segments in position order,
+  transcribes each against the session file, persists READY verbatim or
+  FAILED reason via guarded `ListenerDao.setTranscript` (refuses
+  non-pending rows), skips READY/FAILED rows entirely. Missing session,
+  missing/empty audio, engine failure, and transcriber throws all become
+  honest FAILED rows. Repeated calls are idempotent.
+- **Battery policy:** explicit per-session TRANSCRIBE tap only — never
+  background, never on stop. No WorkManager, no charging/idle hooks.
+- **UI:** `ListenerViewModel` gains `TranscriptionUi`
+  (IDLE/TRANSCRIBING/DONE/FAILED) + message; `ListenerScreen` gains the
+  Transcription card (pending count, disabled when none), progress
+  indicator, result message, TRANSCRIPTS ready/pending/failed counts,
+  and status-aware detail text. READY rows flow into Phase 8
+  `CardGenerator.fromSegments` unchanged; PENDING/FAILED still feed
+  zero cards.
+- **Tests (305 total, 20 new Phase 10 `TranscriptionTest`):** fake-engine
+  verbatim persistence, pending→ready, honest reasons, missing/empty
+  audio, unavailable production transcriber, no overwrite/retry,
+  ordering, scoping, no-BLOB storage, ready→cards integration,
+  idempotence.
+
+---
+
 ## Listener Mode (Phase 7)
 
-Recording + transcript-ready session foundation. No speech-to-text exists in
-this phase: segments honestly report `Transcript pending.`
+Recording + transcript-ready session foundation. Phase 10 adds the
+on-device transcription seam below; the schema below is unchanged
+(Room stays v7, no migration).
 
 - **Schema (v6):** `listener_sessions` (`semesterId` plain history column,
   `status` recording/paused/completed/interrupted/failed, `startedAt`,

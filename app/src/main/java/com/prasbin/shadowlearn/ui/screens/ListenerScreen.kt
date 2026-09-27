@@ -46,13 +46,13 @@ import com.prasbin.shadowlearn.ui.listener.ListenerUiState
 import com.prasbin.shadowlearn.ui.listener.ListenerViewModel
 
 /**
- * Phase 7 Listener Mode — lecture recording + transcript-ready segments.
+ * Phase 7 Listener Mode — lecture recording + transcript-ready segments —
+ * with the Phase 10 on-device transcription seam.
  *
  * SYSTEM identity like Search/Quiz. Honest by design: segments show
- * "Transcript pending." (real speech-to-text is NOT implemented in this
- * phase), amplitude shows the true recorder value (0 on devices/emulators
- * that report none), and every state — including permission denial and
- * recorder failure — is explicit.
+ * "Transcript pending." until a TRANSCRIBE pass runs; the engine writes
+ * verbatim text (READY) or an honest reason (FAILED) — never invented
+ * speech. Transcription is explicit per session, never background work.
  */
 @Composable
 fun ListenerScreen(vm: ListenerViewModel = viewModel(factory = ListenerViewModel.factory(LocalContext.current))) {
@@ -182,6 +182,7 @@ fun ListenerScreen(vm: ListenerViewModel = viewModel(factory = ListenerViewModel
                     }
                 }
                 item { SessionSummaryCard(s) }
+                item { TranscriptionCard(s, onTranscribe = { vm.transcribeCurrentSession() }) }
                 itemsIndexed(s.segments, key = { _, seg -> seg.id }) { i, seg ->
                     SegmentRow(i, seg) { vm.selectSegment(seg) }
                 }
@@ -232,12 +233,20 @@ fun ListenerScreen(vm: ListenerViewModel = viewModel(factory = ListenerViewModel
                     MonoText("TIME  ${formatRange(seg.startedAtMs, seg.durationMs)}")
                     MonoText("STATUS  ${seg.transcriptStatus.uppercase()}")
                     Text(seg.transcript, style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        "Speech-to-text is not implemented yet — this placeholder " +
-                            "marks where the transcript will appear.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    if (seg.transcriptStatus == ListenerSegment.STATUS_READY) {
+                        Text(
+                            "Verbatim engine transcript — this text can feed flashcard review.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text(
+                            "No transcript yet. Run TRANSCRIBE on the session; " +
+                                "an unavailable engine reports the reason here instead of inventing text.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             },
             confirmButton = {
@@ -261,8 +270,10 @@ private fun AboutCard(sessionCount: Int) {
         Text(
             "Listener Mode records the lecture microphone into one audio file " +
                 "per session and cuts transcript-ready segments at every " +
-                "pause/resume boundary. Transcription itself is not built " +
-                "yet — segments honestly report “Transcript pending.”",
+                "pause/resume boundary. Transcription runs only when you tap " +
+                "TRANSCRIBE on a finished session — the on-device engine " +
+                "writes verbatim text, or the segment honestly reports why " +
+                "it could not be transcribed.",
             style = MaterialTheme.typography.bodyMedium
         )
         Spacer(Modifier.height(8.dp))
@@ -350,12 +361,52 @@ private fun RecordingDot(active: Boolean, color: Color) {
 private fun SessionSummaryCard(s: ListenerUiState) {
     SectionCard("Session #${s.reviewSessionId} · ${s.reviewStatus?.uppercase()}") {
         MonoText("SEGMENTS  ${s.segments.size}")
+        val ready = s.segments.count { it.transcriptStatus == ListenerSegment.STATUS_READY }
+        val pending = s.segments.count { it.transcriptStatus == ListenerSegment.STATUS_PENDING }
+        val failed = s.segments.count { it.transcriptStatus == ListenerSegment.STATUS_FAILED }
+        MonoText("TRANSCRIPTS  $ready READY · $pending PENDING · $failed FAILED")
         val path = s.reviewAudioPath
         MonoText(if (path != null) "AUDIO  saved" else "AUDIO  missing — file unavailable")
         if (path != null) {
             Text(
                 path.substringAfterLast('/'),
                 style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun TranscriptionCard(s: ListenerUiState, onTranscribe: () -> Unit) {
+    val pending = s.segments.count { it.transcriptStatus == ListenerSegment.STATUS_PENDING }
+    SectionCard("Transcription") {
+        Text(
+            "On-device speech-to-text runs only here, on tap — never in the " +
+                "background. Audio never leaves the device.",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Spacer(Modifier.height(8.dp))
+        if (s.transcription == com.prasbin.shadowlearn.ui.listener.TranscriptionUi.TRANSCRIBING) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(12.dp))
+                Text("Transcribing segments…")
+            }
+        } else {
+            Button(
+                onClick = onTranscribe,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = pending > 0
+            ) {
+                Text(if (pending > 0) "TRANSCRIBE ($pending PENDING)" else "TRANSCRIBE")
+            }
+        }
+        s.transcriptionMessage?.let {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                it,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }

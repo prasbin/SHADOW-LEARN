@@ -52,6 +52,24 @@ abstract class ListenerDao {
     )
     abstract suspend fun closeSegment(id: Long, durationMs: Long)
 
+    /**
+     * Writes a transcript result onto a segment. [transcriptStatus] is one
+     * of ListenerSegment.STATUS_READY / STATUS_FAILED. The transcript is the
+     * recognizer's VERBATIM text (or the human failure reason when failed).
+     */
+    @Query(
+        "UPDATE listener_segments SET transcript = :transcript, transcriptStatus = :status " +
+            "WHERE id = :id AND transcriptStatus = 'pending'"
+    )
+    abstract suspend fun setTranscript(id: Long, transcript: String, status: String)
+
+    /** The number of still-pending segments in [sessionId] (no double work). */
+    @Query(
+        "SELECT COUNT(*) FROM listener_segments " +
+            "WHERE sessionId = :sessionId AND transcriptStatus = 'pending'"
+    )
+    abstract suspend fun pendingSegmentCount(sessionId: Long): Int
+
     @Query("SELECT COUNT(*) FROM listener_sessions WHERE semesterId = :semesterId")
     abstract suspend fun sessionCount(semesterId: Long): Int
 }
