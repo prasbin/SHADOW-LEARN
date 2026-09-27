@@ -1,9 +1,13 @@
 package com.prasbin.shadowlearn.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,6 +39,20 @@ fun DashboardScreen() {
             SectionCard("Today's Mission") { Text(s.mission) }
         }
         item {
+            SectionCard("Progression") {
+                StatRow("Level", "${s.level}")
+                StatRow("Total XP", "${s.xp}")
+                StatRow("XP to next level", "${s.xpIntoLevel} / ${s.xpForLevel}")
+                Spacer(Modifier.height(6.dp))
+                LinearProgressIndicator(
+                    progress = { s.levelProgress },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(6.dp))
+                StatRow("Streak", if (s.streak == 1) "1 day" else "${s.streak} days")
+            }
+        }
+        item {
             SectionCard("Academic Progress") {
                 StatRow("Progress", "${s.progressPct}%")
                 StatRow("Current Year", s.currentYear)
@@ -44,8 +62,10 @@ fun DashboardScreen() {
         }
         item {
             SectionCard("Training") {
-                StatRow("Quiz Streak", s.streak.toString())
-                Text("Continue Learning — unlocks with the first import.", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    "XP is earned from real quiz answers and flashcard reviews.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
         }
     }

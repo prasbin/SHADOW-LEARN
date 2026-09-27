@@ -11,13 +11,18 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 
 /**
- * Dashboard state. XP / level / streak / progress read from the progression
- * engine in Phase 6 — until then they are honest zeros (never fabricated).
- * Year / semester / module counts come from the real local database.
+ * Dashboard state. Level / XP / streak come from the Phase 9 progression
+ * engine, derived from real persisted quiz + flashcard activity (never
+ * fabricated). Year / semester / module counts come from the real local
+ * database.
  */
 data class DashboardUiState(
     val level: Int = 1,
-    val xp: Int = 0,
+    val xp: Long = 0L,
+    val xpIntoLevel: Long = 0L,
+    val xpForLevel: Long = 100L,
+    val xpToNextLevel: Long = 100L,
+    val levelProgress: Float = 0f,
     val mission: String = "Import your first semester ZIP (Phase 2)",
     val progressPct: Int = 0,
     val currentYear: String = "Not configured",
@@ -32,16 +37,25 @@ class DashboardViewModel(
 
     private val dao = AppContainer.dao(context.applicationContext)
     private val settings = AppContainer.settings(context.applicationContext)
+    private val progression = AppContainer.progression(context.applicationContext)
 
     val state = combine(
         dao.observeModuleCount(),
         settings.currentYearId,
-        settings.currentSemesterId
-    ) { modules, yearId, semesterId ->
+        settings.currentSemesterId,
+        progression.observe()
+    ) { modules, yearId, semesterId, prog ->
         DashboardUiState(
+            level = prog.level,
+            xp = prog.totalXp,
+            xpIntoLevel = prog.xpIntoLevel,
+            xpForLevel = prog.xpForLevel,
+            xpToNextLevel = prog.xpToNextLevel,
+            levelProgress = prog.levelProgress,
             moduleCount = modules,
             currentYear = if (yearId == null) "Not configured" else "Year #$yearId",
-            currentSemester = if (semesterId == null) "Not configured" else "Semester #$semesterId"
+            currentSemester = if (semesterId == null) "Not configured" else "Semester #$semesterId",
+            streak = prog.streak
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardUiState())
 

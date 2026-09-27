@@ -75,6 +75,10 @@ abstract class QuizDao {
     @Query("SELECT completedAt FROM quiz_sessions WHERE status = 'completed' AND completedAt IS NOT NULL ORDER BY completedAt DESC")
     abstract suspend fun completionTimes(): List<Long>
 
+    /** Reactive completion times for the Phase 9 progression streak. */
+    @Query("SELECT completedAt FROM quiz_sessions WHERE status = 'completed' AND completedAt IS NOT NULL ORDER BY completedAt DESC")
+    abstract fun observeCompletionTimes(): Flow<List<Long>>
+
     @Query("SELECT COUNT(*) FROM quiz_sessions WHERE status = 'completed'")
     abstract suspend fun completedCount(): Int
 

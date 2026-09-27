@@ -35,7 +35,7 @@ com.prasbin.shadowlearn
 └── util/                   # formatBytes (unit-tested)
 ```
 
-## Database (v6)
+## Database (v7)
 
 Tables: `academic_years` → `semesters` → `modules` → `weeks` →
 `academic_files`, all with `CASCADE` deletes and FK indices.
@@ -512,7 +512,7 @@ States: `LOADING` / `NO_SEMESTER` / `NO_DECKS` / `IDLE` / `REVIEW` /
 
 No fake mastery percentages. Dark futuristic RPG "SYSTEM" aesthetic.
 
-**Tests (251 total, 63 new Phase 8):**
+**Tests at Phase 8 (251 total, 63 new):**
 
 - Migration v6→v7, schema version 7, old data survival
 - Deck/card persistence, deterministic generation, verbatim content
@@ -521,6 +521,48 @@ No fake mastery percentages. Dark futuristic RPG "SYSTEM" aesthetic.
 - `dueAt`, day boundaries, due ordering, suspension
 - Review event/session persistence, atomic grade, resume, interrupted
   review, completion/retained counts
+
+---
+
+## Progression Engine (Phase 9)
+
+**No schema change** - Room stays v7, no migration: XP/level/streak are
+derived from existing rows, so the engine can never drift from history.
+
+- **Sources:** quiz XP from persisted `quiz_sessions.xpEarned`
+  (Phase 6 rule: 10 XP per correct answer); flashcard XP from
+  `flashcard_review_events` ratings - AGAIN=0, HARD=2, GOOD=5, EASY=8 -
+  counted once per persisted event. No XP on display/resume; no
+  fabrication; no backdating.
+- **`ProgressionCalculator`** (pure, `data/progression/`, no Android):
+  level formula `100*(N-1)^2` (L1=0, L2=100, L3=400, L4=900, ...,
+  unbounded, integer-only `isqrt`), `levelFromXp`,
+  `xpIntoCurrentLevel`, `xpRequiredForNextLevel` (level span), plus
+  `xpToNextLevel` and the single `streakFrom(times, now)` day-index
+  implementation. `QuizRepository.streakFrom` and
+  `QuizRepository.XP_PER_CORRECT` now delegate to it - one streak, one
+  quiz-XP constant.
+- **DAOs (additive queries, no tables):**
+  `FlashcardDao.reviewActivity` / `observeReviewActivity`
+  (`ReviewActivityRow(rating, reviewedAt)`; weights stay in Kotlin,
+  never in SQL) and `QuizDao.observeCompletionTimes` (the suspend
+  `completionTimes` already existed).
+- **`ProgressionRepository`** - the ONE authoritative path:
+  `combine(observeSummary, observeCompletionTimes, observeReviewActivity)`
+  into a `Progression(totalXp, level, xpIntoLevel, xpForLevel,
+  xpToNextLevel, streak)` snapshot (`levelProgress` is a derived
+  getter). `current()` is the one-shot used by tests.
+- **Dashboard:** `DashboardViewModel` combines the module/year/semester
+  scope with `progression.observe()` (reactive - any DB change
+  re-renders); `DashboardScreen` shows the `Level N - M XP` header and
+  a Progression card (Level, Total XP, `into / span`, progress bar,
+  streak), with an honest Level 1 / 0 XP / 0-day empty state. Other
+  tabs untouched.
+- **Tests (285 total, 34 new Phase 9):** pure level/XP/streak table
+  (`ProgressionCalculatorTest`) and aggregation over real in-memory
+  Room (`ProgressionRepositoryTest`: empty DB, quiz-only XP,
+  per-event XP, AGAIN=0, mixed totals, threshold levels,
+  double-read idempotence, combined streak fields).
 
 ---
 

@@ -143,20 +143,11 @@ class QuizRepository(
 
     /**
      * Consecutive-day streak ending today (or yesterday when today has no
-     * session yet). Computed strictly from [completionTimes].
+     * session yet). Delegates to the shared Phase 9 progression helper so
+     * there is exactly one streak implementation.
      */
-    internal fun streakFrom(completionTimes: List<Long>, now: Long): Int {
-        val today = now / DAY_MS
-        val days = completionTimes.map { it / DAY_MS }.toSet()
-        var day = today
-        if (day !in days) day -= 1 // a missed today keeps yesterday's streak
-        var streak = 0
-        while (day in days) {
-            streak++
-            day--
-        }
-        return streak
-    }
+    internal fun streakFrom(completionTimes: List<Long>, now: Long): Int =
+        com.prasbin.shadowlearn.data.progression.ProgressionCalculator.streakFrom(completionTimes, now)
 
     private fun GeneratedQuestion.toEntity(sessionId: Long, position: Int) = QuizQuestion(
         sessionId = sessionId,
@@ -217,9 +208,9 @@ class QuizRepository(
     }
 
     companion object {
-        const val XP_PER_CORRECT = 10
+        /** Single source of truth for quiz XP lives in the progression engine. */
+        const val XP_PER_CORRECT = com.prasbin.shadowlearn.data.progression.ProgressionCalculator.QUIZ_XP_PER_CORRECT
         private val TRUE_FALSE_OPTIONS = listOf("true", "false")
-        private const val DAY_MS = 86_400_000L
         /** Ring capacity for "recent chunk ids" (≈ 3 sessions of 10). */
         private const val RECENT_WINDOW_CHUNKS = 30
     }

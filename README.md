@@ -5,7 +5,8 @@ Personal offline-first university learning OS (native Android).
 - Package: `com.prasbin.shadowlearn`
 - UI: Jetpack Compose (Material 3, dark futuristic theme)
 - Data: Room (SQLite) + DataStore + Storage Access Framework
-- Status: **Phase 7 â€” Listener Mode foundation.** Text, OOXML/.docx/
+- Status: **Phase 9 - Progression engine.** XP/level/streak derived from
+  persisted quiz + flashcard activity. Text, OOXML/.docx/
   .pptx, and PDF extraction with per-file, per-page chunks and an
   incremental FTS index (FTS5 auto-falls back to FTS4), fast honest
   academic search, a fully offline quiz engine over the current
@@ -13,7 +14,7 @@ Personal offline-first university learning OS (native Android).
   from verbatim excerpts, every option a real phrase from the material,
   every question citing its source), and now lecture recording with
   transcript-ready sessions/segments (speech-to-text NOT yet
-  implemented). No AI or similarity checking yet (Phase 8+).
+  implemented). No AI or similarity checking yet (later phases).
 
 ## Features (Phase 3)
 
@@ -182,6 +183,37 @@ Personal offline-first university learning OS (native Android).
     2 COMPLETED sessions, 4 events, all cards intervalDays=1,
     dueAt=tomorrow day-boundary. No FATALs.
 
+## Features (Phase 9)
+
+- **Progression engine, fully derived** (no new tables, no migration -
+  Room stays v7). Single authoritative path `ProgressionRepository`
+  over existing persisted rows; the UI never computes progression.
+  - XP: quiz 10 XP per correct answer (`quiz_sessions.xpEarned`
+    snapshots); flashcard review events AGAIN=0 / HARD=2 / GOOD=5 /
+    EASY=8, counted once per persisted event (display/resume never
+    double-awards).
+  - Level: pure `100*(N-1)^2` formula (L1=0, L2=100, L3=400, L4=900,
+    L5=1600, ...), unbounded, integer-only; helpers `levelFromXp`,
+    `xpIntoCurrentLevel`, `xpRequiredForNextLevel`.
+  - Streak: consecutive calendar days ending today (or yesterday when
+    today is quiet); same-day activity counts once; gaps reset. One
+    shared implementation (`QuizRepository.streakFrom` and
+    `XP_PER_CORRECT` now delegate to it).
+  - Dashboard Home (SYSTEM identity): "Level N - M XP" header, new
+    Progression card (Level, Total XP, `into / span` toward next,
+    progress bar, streak); honest Level 1 / 0 XP / 0-day empty state.
+  - **34 new Phase 9 tests** (level thresholds/threshold-1/large XP,
+    progress math, all XP weights, streak table incl. mixed quiz+card
+    days, repository aggregation over real Room incl. empty DB and
+    double-read idempotence). Total: **285 green**.
+  - **Emulator CE_Test API 36 verified**: install over Phase 8 data
+    (no migration, `user_version` stays 7). Seeded device held 4 GOOD
+    events + 0 quiz rows - dashboard showed Level 1 - 20 XP, 20/100,
+    1-day streak (independently recomputed). Graded one EASY via
+    Resume Review - 28 XP, 28/100, 2-day streak. Seeded a completed
+    40-XP quiz row - 68 XP, 68/100, streak 2. Force-stop + relaunch
+    kept every value. No FATALs.
+
 ## Features (Phase 7)
 
 - **Listener Mode foundation, fully offline** (Room v6 tables
@@ -218,11 +250,11 @@ Requirements and exact commands: see [docs/SETUP.md](docs/SETUP.md).
 Architecture and database / ingest / extraction pipeline: see
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-Status-line: `.\gradlew.bat testDebugUnitTest assembleDebug` (**251 unit
+Status-line: `.\gradlew.bat testDebugUnitTest assembleDebug` (**285 unit
 tests**, including Robolectric Room migrations + end-to-end ingest,
 reconciliation, extraction, Search, the quiz engine over a real FTS4
-index, Listener Mode sessions/segments, and Flashcards/SM-2-lite
-spaced review).
+index, Listener Mode sessions/segments, Flashcards/SM-2-lite
+spaced review, and the Phase 9 progression engine).
 
 ## Testing status
 
@@ -343,15 +375,29 @@ spaced review).
   mistakes, READY-only listener, PENDING/FAILED exclusion, all 4
   ratings, ease bounds, interval math, dueAt day-boundaries, due
   ordering, suspension, review event/session persistence, atomic grade,
-  resume, interrupted review, completion/retained counts).
+   resume, interrupted review, completion/retained counts).
+- **Emulator verification performed - Phase 9 Progression**
+  (`CE_Test`, API 36, current build over Phase 8 data, no migration):
+  seeded device held 4 GOOD review events + 0 quiz rows; Home showed
+  `Level 1 - 20 XP`, `Total XP: 20`, `20 / 100`, `Streak: 1 day`
+  (independently recomputed from `reviewedAt` day indices). Resumed
+  review, graded one EASY -> 28 XP, 28/100, 2-day streak. Seeded a
+  completed 40-XP quiz row -> 68 XP, 68/100, streak 2. Force-stop +
+  relaunch kept every value. No FATAL crashes (only the pre-existing
+  unrelated `droid.bluetooth` daemon abort seen since Phase 8).
+  Unit suite for this pass: **285/285** (adds 34 Phase 9 tests: level
+  thresholds/threshold-1/large XP, progress math, quiz + rating XP
+  weights, streak table incl. mixed quiz+card days, repository
+  aggregation over real Room incl. empty DB, in-progress exclusion,
+  and double-read idempotence).
 
 ## Current limitations
 
-- XP / level / streak / progress on the Home dashboard are honest zeros
-  until the progression engine (quiz XP/streak are persisted in the quiz
-  tables already).
+- XP / level / streak on the Home dashboard are now derived from real
+  persisted quiz + flashcard activity; Progress % stays an honest 0 until
+  a progression rule needs it.
 - Export / Import of saved archives is not yet implemented.
-- Cards tab remains a placeholder; Listen is recording-only (no
+- Listen is recording-only (no
   speech-to-text, no summaries â€” segments report â€œTranscript pending.â€).
 - Search covers the current semester's indexed *chunks* only; unindexed
   file types (`.rtf`, OLE `.doc`, garbage files) are explained per file by
@@ -359,6 +405,6 @@ spaced review).
 
 ## Next
 
-Phase 8 â€” the ONE next step (see the Phase 7 hand-off prompt).
+Phase 10 - the ONE next step (see the Phase 9 hand-off prompt).
 
 

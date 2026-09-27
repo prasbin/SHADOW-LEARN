@@ -104,6 +104,18 @@ object AppContainer {
             ).also { flashcardRepo = it }
         }
 
+    @Volatile
+    private var progressionRepo: com.prasbin.shadowlearn.data.progression.ProgressionRepository? = null
+
+    /** Phase 9 progression: derived XP/level/streak from existing persisted activity. */
+    fun progression(context: Context): com.prasbin.shadowlearn.data.progression.ProgressionRepository =
+        progressionRepo ?: synchronized(this) {
+            progressionRepo ?: com.prasbin.shadowlearn.data.progression.ProgressionRepository(
+                quizDao = database(context).quizDao(),
+                flashcardDao = database(context).flashcardDao()
+            ).also { progressionRepo = it }
+        }
+
     fun settings(context: Context): SettingsRepository =
         settings ?: synchronized(this) {
             settings ?: SettingsRepository(context.applicationContext).also { settings = it }

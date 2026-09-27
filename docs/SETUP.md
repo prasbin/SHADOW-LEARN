@@ -49,7 +49,7 @@ E:\Desktop\AGENTS-UP` v2.0\.tools\gradle-8.13\bin\gradle.bat wrapper --gradle-ve
 ```powershell
 .\gradlew.bat assembleDebug          # APK: app\build\outputs\apk\debug\app-debug.apk
 .\gradlew.bat testDebugUnitTest      # unit tests (Robolectric Room tests included)
-.\gradlew.bat testDebugUnitTest assembleDebug   # full Phase 8 check (251 tests)
+.\gradlew.bat testDebugUnitTest assembleDebug   # full Phase 9 check (285 tests)
 .\gradlew.bat :app:installDebug      # needs a device/emulator on adb
 ```
 
@@ -185,5 +185,16 @@ this machine has triggered flaky `ChildProcess.kill` aborts.
   (previously graded cards excluded), counts preserved (reviewed/retained).
   Complete remaining 2 cards (GOOD) → Results: Reviewed 3, Retained 3,
   100%. DB verified: 2 COMPLETED sessions, 4 events, all cards
-  intervalDays=1, dueAt=tomorrow day-boundary. No FATAL crashes.
+   intervalDays=1, dueAt=tomorrow day-boundary. No FATAL crashes.
+- Phase 9 emulator session (2026-09-27, `CE_Test`, API 36, current
+  `app-debug.apk` installed over Phase 8 data, no migration):
+  dashboard showed the seeded device's real values (`Level 1 - 20 XP`,
+  `Total XP: 20`, `20 / 100`, `Streak: 1 day` from 4 GOOD events and 0
+  quiz rows - verified against independent day-index math). Resumed
+  review, graded one EASY -> 28 XP / 28-100 / 2-day streak; seeded one
+  completed 40-XP quiz row -> 68 XP / 68-100 / streak 2; force-stop +
+  relaunch preserved everything; no app FATALs. Environment note: a
+  preinstalled `com.shadowbody.app` repeatedly stole window focus and
+  was disabled (`pm disable-user`) before driving taps; `uiautomator
+  dump` still returns "null root node" transiently (retry the dump).
 - **REAL DEVICE TESTING: NOT PERFORMED.**

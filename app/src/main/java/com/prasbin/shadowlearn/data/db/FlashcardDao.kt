@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import kotlinx.coroutines.flow.Flow
 
 /**
  * Phase 8 DAO: decks, cards, review sessions + events.
@@ -121,6 +122,18 @@ abstract class FlashcardDao {
     @Query("SELECT * FROM flashcard_review_events WHERE sessionId = :sessionId ORDER BY id")
     abstract suspend fun reviewEvents(sessionId: Long): List<ReviewEvent>
 
+    /**
+     * Every persisted review event's rating + time (read-only projection)
+     * — the single source for flashcard XP and review-day streak. No XP is
+     * computed in SQL: the weights live in `ProgressionCalculator`.
+     */
+    @Query("SELECT rating, reviewedAt FROM flashcard_review_events ORDER BY reviewedAt")
+    abstract fun observeReviewActivity(): Flow<List<ReviewActivityRow>>
+
+    /** Suspend variant of [observeReviewActivity] for one-shot reads/tests. */
+    @Query("SELECT rating, reviewedAt FROM flashcard_review_events ORDER BY reviewedAt")
+    abstract suspend fun reviewActivity(): List<ReviewActivityRow>
+
     @Query(
         "UPDATE flashcard_review_sessions SET reviewedCount = :reviewed, " +
             "retainedCount = :retained WHERE id = :id"
@@ -187,4 +200,10 @@ data class ReadySegmentRow(
     val transcript: String,
     /** Echoed so generation can refuse non-ready rows even if a caller errs. */
     val transcriptStatus: String
+)
+
+/** Review rating + time projection for the Phase 9 progression engine. */
+data class ReviewActivityRow(
+    val rating: String,
+    val reviewedAt: Long
 )
