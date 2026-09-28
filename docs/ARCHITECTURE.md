@@ -549,6 +549,32 @@ become reviewable lecture cards through the unchanged Phase 8 build.
 
 ---
 
+## Academic Progress (Phase 12)
+
+**No schema change** - Room stays v7, no migration. Home Progress % is
+derived from existing rows; empty database stays honest 0%.
+
+- **Formula (documented, integer-only):** four binary milestones × 25:
+  import (≥1 `academic_files` row), extraction (≥1 `document_chunks`
+  row), quiz (≥1 completed session), review (≥1 review event). Binary
+  by design - graduated cutoffs would be invented; volumes never
+  inflate the score.
+- **`ProgressCalculator`** (pure, `data/progression/`): `progressOf`
+  and `basisOf` ("import · quiz (2 of 4)", "" when empty).
+- **`AcademicProgressRepository`** - the ONE path: combines
+  `observeFileCount` / `observeChunkCount` (new additive queries) with
+  the existing `observeSummary` / `observeReviewActivity`; `current()`
+  one-shot for tests. XP/level/streak math untouched.
+- **Dashboard:** `DashboardViewModel` adds the progress flow;
+  `DashboardScreen` shows the derived % plus a "Based on …" basis
+  line. Other tabs untouched.
+- **Tests (339 total, 18 new):** `ProgressCalculatorTest` formula
+  table + `AcademicProgressRepositoryTest` over real Room (empty DB,
+  each milestone alone, pairs/triples/full, volumes never
+  double-count, in-progress quiz ignored).
+
+---
+
 ## Progression Engine (Phase 9)
 
 **No schema change** - Room stays v7, no migration: XP/level/streak are

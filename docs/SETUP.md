@@ -49,7 +49,7 @@ E:\Desktop\AGENTS-UP` v2.0\.tools\gradle-8.13\bin\gradle.bat wrapper --gradle-ve
 ```powershell
 .\gradlew.bat assembleDebug          # APK: app\build\outputs\apk\debug\app-debug.apk
 .\gradlew.bat testDebugUnitTest      # unit tests (Robolectric Room tests included)
-.\gradlew.bat testDebugUnitTest assembleDebug   # full Phase 11 check (321 tests)
+.\gradlew.bat testDebugUnitTest assembleDebug   # full Phase 12 check (339 tests)
 .\gradlew.bat :app:installDebug      # needs a device/emulator on adb
 ```
 
@@ -214,4 +214,10 @@ this machine has triggered flaky `ChildProcess.kill` aborts.
   Lecture cards: 2"; DB shows the new card verbatim (`seg:4`,
   `Lecture segment #4`) and the seeded `seg:1` card untouched.
   Force-stop + relaunch preserved. No app FATALs.
+- Phase 12 emulator session (2026-09-28, `CE_Test`, API 36, current
+  `app-debug.apk` installed over Phase 11 data, no migration):
+  device held 1 file, 2 chunks, 0 quiz sessions, 4 review events;
+  Home showed `Progress: 75%` + "Based on import · extraction ·
+  review (3 of 4)." — matching independent recomputation from
+  on-device rows. Force-stop + relaunch preserved. No app FATALs.
 - **REAL DEVICE TESTING: NOT PERFORMED.**

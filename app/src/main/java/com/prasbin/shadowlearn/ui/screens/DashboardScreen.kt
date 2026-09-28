@@ -55,6 +55,13 @@ fun DashboardScreen() {
         item {
             SectionCard("Academic Progress") {
                 StatRow("Progress", "${s.progressPct}%")
+                if (s.progressBasis.isNotEmpty()) {
+                    Text(
+                        "Based on ${s.progressBasis}.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 StatRow("Current Year", s.currentYear)
                 StatRow("Current Semester", s.currentSemester)
                 StatRow("Modules", s.moduleCount.toString())

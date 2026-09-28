@@ -25,6 +25,8 @@ data class DashboardUiState(
     val levelProgress: Float = 0f,
     val mission: String = "Import your first semester ZIP (Phase 2)",
     val progressPct: Int = 0,
+    /** Honest basis line for [progressPct], "" when nothing is reached. */
+    val progressBasis: String = "",
     val currentYear: String = "Not configured",
     val currentSemester: String = "Not configured",
     val moduleCount: Int = 0,
@@ -38,13 +40,18 @@ class DashboardViewModel(
     private val dao = AppContainer.dao(context.applicationContext)
     private val settings = AppContainer.settings(context.applicationContext)
     private val progression = AppContainer.progression(context.applicationContext)
+    private val academicProgress = AppContainer.academicProgress(context.applicationContext)
 
     val state = combine(
-        dao.observeModuleCount(),
-        settings.currentYearId,
-        settings.currentSemesterId,
-        progression.observe()
-    ) { modules, yearId, semesterId, prog ->
+        combine(
+            dao.observeModuleCount(),
+            settings.currentYearId,
+            settings.currentSemesterId
+        ) { modules, yearId, semesterId -> Triple(modules, yearId, semesterId) },
+        progression.observe(),
+        academicProgress.observe()
+    ) { scope, prog, progress ->
+        val (modules, yearId, semesterId) = scope
         DashboardUiState(
             level = prog.level,
             xp = prog.totalXp,
@@ -52,6 +59,8 @@ class DashboardViewModel(
             xpForLevel = prog.xpForLevel,
             xpToNextLevel = prog.xpToNextLevel,
             levelProgress = prog.levelProgress,
+            progressPct = progress.percent,
+            progressBasis = progress.basis,
             moduleCount = modules,
             currentYear = if (yearId == null) "Not configured" else "Year #$yearId",
             currentSemester = if (semesterId == null) "Not configured" else "Semester #$semesterId",

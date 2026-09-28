@@ -63,6 +63,10 @@ interface AcademicDao {
     @Query("SELECT COUNT(*) FROM academic_files")
     suspend fun getFileCount(): Int
 
+    /** Reactive file count for the Phase 12 derived-progress engine. */
+    @Query("SELECT COUNT(*) FROM academic_files")
+    fun observeFileCount(): Flow<Int>
+
     @Query("SELECT COUNT(*) FROM source_files")
     suspend fun getContentCount(): Int
 

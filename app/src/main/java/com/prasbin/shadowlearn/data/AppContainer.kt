@@ -133,6 +133,20 @@ object AppContainer {
             ).also { progressionRepo = it }
         }
 
+    @Volatile
+    private var academicProgressRepo: com.prasbin.shadowlearn.data.progression.AcademicProgressRepository? = null
+
+    /** Phase 12 academic progress: derived Progress % from existing persisted rows. */
+    fun academicProgress(context: Context): com.prasbin.shadowlearn.data.progression.AcademicProgressRepository =
+        academicProgressRepo ?: synchronized(this) {
+            academicProgressRepo ?: com.prasbin.shadowlearn.data.progression.AcademicProgressRepository(
+                academicDao = database(context).academicDao(),
+                extractionDao = database(context).extractionDao(),
+                quizDao = database(context).quizDao(),
+                flashcardDao = database(context).flashcardDao()
+            ).also { academicProgressRepo = it }
+        }
+
     fun settings(context: Context): SettingsRepository =
         settings ?: synchronized(this) {
             settings ?: SettingsRepository(context.applicationContext).also { settings = it }

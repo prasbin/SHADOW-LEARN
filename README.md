@@ -5,8 +5,9 @@ Personal offline-first university learning OS (native Android).
 - Package: `com.prasbin.shadowlearn`
 - UI: Jetpack Compose (Material 3, dark futuristic theme)
 - Data: Room (SQLite) + DataStore + Storage Access Framework
-- Status: **Phase 11 - Lecture-card loop.** READY listener transcripts
-  flow into flashcard decks with honest lecture provenance. Text, OOXML/.docx/
+- Status: **Phase 12 - Derived academic progress.** Home Progress % is
+  computed from real persisted milestones (import · extraction · quiz ·
+  review), never fabricated. Text, OOXML/.docx/
   .pptx, and PDF extraction with per-file, per-page chunks and an
   incremental FTS index (FTS5 auto-falls back to FTS4), fast honest
   academic search, a fully offline quiz engine over the current
@@ -287,6 +288,32 @@ Personal offline-first university learning OS (native Android).
     #4`), seeded card untouched. Force-stop + relaunch preserved.
     No app FATALs.
 
+## Features (Phase 12)
+
+- **Derived academic Progress %, no new tables, no migration** (Room
+  stays v7). Four binary milestones × 25 points: import (≥1 academic
+  file), extraction (≥1 chunk), quiz (≥1 completed session), review
+  (≥1 flashcard review event). Empty database stays honest 0%.
+  - `ProgressCalculator` (pure, integer-only) + `AcademicProgress`
+  snapshot (`percent`, `basis` e.g. "import · quiz (2 of 4)") +
+  `AcademicProgressRepository` (the ONE path: combines
+  `observeFileCount`, `observeChunkCount`, `observeSummary`,
+  `observeReviewActivity`; `current()` one-shot). Volumes never
+  inflate the score — each milestone fires once.
+  - Dashboard Academic Progress card shows the derived % plus a
+  "Based on …" basis line; other tabs untouched. XP/level/streak math
+  untouched.
+  - **18 new Phase 12 tests** (`ProgressCalculatorTest` formula table
+    + `AcademicProgressRepositoryTest` over real Room: empty DB,
+    each milestone alone, pairs/triples/full, volumes never
+    double-count, in-progress quiz ignored). Total: **339 green**.
+  - **Emulator CE_Test API 36 verified**: install over Phase 11 data
+    (no migration; device held 1 file, 2 chunks, 0 quiz sessions,
+    4 review events). Home showed `Progress: 75%` +
+    "Based on import · extraction · review (3 of 4)." — matching
+    independent recomputation. Force-stop + relaunch preserved.
+    No app FATALs.
+
 ## Features (Phase 7)
 
 - **Listener Mode foundation, fully offline** (Room v6 tables
@@ -323,12 +350,13 @@ Requirements and exact commands: see [docs/SETUP.md](docs/SETUP.md).
 Architecture and database / ingest / extraction pipeline: see
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-Status-line: `.\gradlew.bat testDebugUnitTest assembleDebug` (**321 unit
+Status-line: `.\gradlew.bat testDebugUnitTest assembleDebug` (**339 unit
 tests**, including Robolectric Room migrations + end-to-end ingest,
 reconciliation, extraction, Search, the quiz engine over a real FTS4
 index, Listener Mode sessions/segments, Flashcards/SM-2-lite
 spaced review, the Phase 9 progression engine, Phase 10
-listener transcription, and the Phase 11 lecture-card loop).
+listener transcription, the Phase 11 lecture-card loop, and the
+Phase 12 derived-progress engine).
 
 ## Testing status
 
@@ -492,12 +520,23 @@ listener transcription, and the Phase 11 lecture-card loop).
   refresh picks up newly-ready rows, no rewrite on transcript edit,
   contentKey stability, empty pool, lectureCardCount incl. suspended,
   due-queue inclusion).
+- **Emulator verification performed - Phase 12 Derived progress**
+  (`CE_Test`, API 36, current build over Phase 11 data, no migration):
+  device held 1 file, 2 chunks, 0 quiz sessions, 4 review events;
+  Home showed `Progress: 75%` + "Based on import · extraction ·
+  review (3 of 4)." — matching independent recomputation from
+  on-device rows. Force-stop + relaunch preserved. No app FATALs.
+  Unit suite for this pass: **339/339** (adds 18 Phase 12 tests:
+  formula table incl. empty/partial/full, repository aggregation
+  over real Room, volumes never double-count, in-progress quiz
+  ignored).
 
 ## Current limitations
 
 - XP / level / streak on the Home dashboard are now derived from real
-  persisted quiz + flashcard activity; Progress % stays an honest 0 until
-  a progression rule needs it.
+  persisted quiz + flashcard activity, as is the Academic Progress %
+  (import · extraction · quiz · review milestones, with an honest
+  basis line).
 - Export / Import of saved archives is not yet implemented.
 - Listen records + transcribes via an explicit per-session pass, but no
   real on-device speech engine is bundled yet: without one, segments
@@ -510,6 +549,6 @@ listener transcription, and the Phase 11 lecture-card loop).
 
 ## Next
 
-Phase 12 - the ONE next step (see the Phase 11 hand-off prompt).
+Phase 13 - the ONE next step (see the Phase 12 hand-off prompt).
 
 

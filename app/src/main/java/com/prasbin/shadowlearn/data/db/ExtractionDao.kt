@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import kotlinx.coroutines.flow.Flow
 
 /**
  * Phase 4 DAO: document chunks + extraction metadata.
@@ -53,6 +54,14 @@ abstract class ExtractionDao {
 
     @Query("SELECT COUNT(*) FROM document_chunks WHERE academicFileId = :fileId")
     abstract suspend fun chunkCountForFile(fileId: Long): Int
+
+    /** Reactive total chunk count for the Phase 12 derived-progress engine. */
+    @Query("SELECT COUNT(*) FROM document_chunks")
+    abstract fun observeChunkCount(): Flow<Int>
+
+    /** Suspend variant of [observeChunkCount] for one-shot reads/tests. */
+    @Query("SELECT COUNT(*) FROM document_chunks")
+    abstract suspend fun totalChunkCount(): Int
 
     @Query(
         "SELECT f.* FROM academic_files f " +
