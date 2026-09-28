@@ -96,6 +96,9 @@ private fun DeckView(s: FlashcardUiState, onStartReview: () -> Unit, onResumeRev
         StatRow("Semester", s.semesterName ?: "—")
         StatRow("Total cards", "${s.totalCards}")
         StatRow("Due now", "${s.dueCount}")
+        if (s.lectureCardCount > 0) {
+            StatRow("Lecture cards", "${s.lectureCardCount}")
+        }
         if (s.suspendedCount > 0) {
             StatRow("Suspended", "${s.suspendedCount}")
         }

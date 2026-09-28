@@ -5,9 +5,8 @@ Personal offline-first university learning OS (native Android).
 - Package: `com.prasbin.shadowlearn`
 - UI: Jetpack Compose (Material 3, dark futuristic theme)
 - Data: Room (SQLite) + DataStore + Storage Access Framework
-- Status: **Phase 10 - Listener transcription seam.** On-device STT
-  abstraction over recorded sessions (verbatim READY or honest FAILED,
-  never fabricated). Text, OOXML/.docx/
+- Status: **Phase 11 - Lecture-card loop.** READY listener transcripts
+  flow into flashcard decks with honest lecture provenance. Text, OOXML/.docx/
   .pptx, and PDF extraction with per-file, per-page chunks and an
   incremental FTS index (FTS5 auto-falls back to FTS4), fast honest
   academic search, a fully offline quiz engine over the current
@@ -253,6 +252,41 @@ Personal offline-first university learning OS (native Android).
     session untouched. Force-stop + relaunch preserved rows. Cards tab
     intact (deck 5, due 5). No app FATALs.
 
+## Features (Phase 11)
+
+- **Lecture-card loop, no new tables, no migration** (Room stays v7).
+  READY listener transcripts become reviewable `seg:<id>` lecture cards
+  through the unchanged Phase 8 deck build (`buildDeck` already pulls
+  READY segments; `loadDeck` regenerates on every load so newly-ready
+  rows appear without a restart).
+  - Provenance derived from the existing `sourceListenerSegmentId`
+    column: new `FlashcardDao.lectureCardCount` query, repository
+    passthrough, `FlashcardUiState.lectureCardCount`, and a "Lecture
+    cards: N" deck row (shown only when N > 0 — never a fabricated
+    zero-state claim beyond the existing totals).
+  - Listener SEGMENTS view shows "READY transcripts feed flashcard
+    review in the Cards tab." whenever a READY row is present (hint
+    only — no navigation changes, other tabs untouched).
+  - Snapshot semantics preserved: cards are verbatim copies at build
+    time (front = first sentence, back = full transcript, citation
+    `Lecture segment #n`); later transcript edits never rewrite cards;
+    rebuilds dedupe by the unique `(deckId, contentKey)` index;
+    PENDING/FAILED still feed zero cards; short transcripts still hit
+    the `MIN_SEGMENT` guard.
+  - **16 new Phase 11 tests** (`LectureCardLoopTest` over real Room:
+    ready→deck verbatim/front/citation, multi-session scoping,
+    cross-semester exclusion, pending/failed/short exclusion,
+    idempotent rebuild, refresh picks up newly-ready rows, no rewrite
+    on transcript edit, contentKey stability, empty pool, count
+    query incl. suspended, due-queue inclusion). Total: **321 green**.
+  - **Emulator CE_Test API 36 verified**: install over Phase 10 data
+    (no migration, all rows survive). Deck view shows "Lecture cards:
+    1" for the seeded READY segment. Inserted one honestly-labeled
+    READY test segment → relaunch rebuilt the deck → "Total 6,
+    Lecture cards: 2", new card verbatim (`seg:4`, `Lecture segment
+    #4`), seeded card untouched. Force-stop + relaunch preserved.
+    No app FATALs.
+
 ## Features (Phase 7)
 
 - **Listener Mode foundation, fully offline** (Room v6 tables
@@ -289,12 +323,12 @@ Requirements and exact commands: see [docs/SETUP.md](docs/SETUP.md).
 Architecture and database / ingest / extraction pipeline: see
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-Status-line: `.\gradlew.bat testDebugUnitTest assembleDebug` (**305 unit
+Status-line: `.\gradlew.bat testDebugUnitTest assembleDebug` (**321 unit
 tests**, including Robolectric Room migrations + end-to-end ingest,
 reconciliation, extraction, Search, the quiz engine over a real FTS4
 index, Listener Mode sessions/segments, Flashcards/SM-2-lite
-spaced review, the Phase 9 progression engine, and Phase 10
-listener transcription).
+spaced review, the Phase 9 progression engine, Phase 10
+listener transcription, and the Phase 11 lecture-card loop).
 
 ## Testing status
 
@@ -444,6 +478,20 @@ listener transcription).
   missing/empty audio, unavailable production transcriber, no
   overwrite/retry, ordering, scoping, no-BLOB storage, ready->cards
   integration, idempotence).
+- **Emulator verification performed - Phase 11 Lecture-card loop**
+  (`CE_Test`, API 36, current build over Phase 10 data, no migration,
+  all rows survive): deck view shows "Lecture cards: 1" for the seeded
+  READY segment. Inserted one honestly-labeled READY test segment →
+  relaunch rebuilt the deck → "Total cards: 6, Lecture cards: 2", new
+  card verbatim (`seg:4`, `Lecture segment #4`), seeded `seg:1` card
+  untouched. Pending/failed rows produced nothing. Force-stop +
+  relaunch preserved. No app FATALs.
+  Unit suite for this pass: **321/321** (adds 16 Phase 11 tests:
+  ready→deck verbatim, multi-session scoping, cross-semester
+  exclusion, pending/failed/short exclusion, idempotent rebuild,
+  refresh picks up newly-ready rows, no rewrite on transcript edit,
+  contentKey stability, empty pool, lectureCardCount incl. suspended,
+  due-queue inclusion).
 
 ## Current limitations
 
@@ -454,12 +502,14 @@ listener transcription).
 - Listen records + transcribes via an explicit per-session pass, but no
   real on-device speech engine is bundled yet: without one, segments
   report the honest unavailability reason instead of invented text.
+  READY transcripts that do exist become lecture cards in the Cards
+  tab with an honest "Lecture cards" count.
 - Search covers the current semester's indexed *chunks* only; unindexed
   file types (`.rtf`, OLE `.doc`, garbage files) are explained per file by
   the extraction metadata and never silently â€œmatch nothingâ€.
 
 ## Next
 
-Phase 11 - the ONE next step (see the Phase 10 hand-off prompt).
+Phase 12 - the ONE next step (see the Phase 11 hand-off prompt).
 
 

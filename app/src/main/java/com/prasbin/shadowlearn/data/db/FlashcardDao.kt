@@ -52,6 +52,14 @@ abstract class FlashcardDao {
     @Query("SELECT COUNT(*) FROM flashcards WHERE deckId = :deckId")
     abstract suspend fun cardCount(deckId: Long): Int
 
+    /**
+     * Cards derived from READY listener transcripts (Phase 11 lecture-card
+     * provenance). Derived from the existing `sourceListenerSegmentId`
+     * column — no new tables, no migration.
+     */
+    @Query("SELECT COUNT(*) FROM flashcards WHERE deckId = :deckId AND sourceListenerSegmentId IS NOT NULL")
+    abstract suspend fun lectureCardCount(deckId: Long): Int
+
     @Query("SELECT COUNT(*) FROM flashcards WHERE deckId = :deckId AND suspended = 0 AND dueAt <= :now")
     abstract suspend fun dueCount(deckId: Long, now: Long): Int
 

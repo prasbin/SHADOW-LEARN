@@ -40,6 +40,8 @@ data class FlashcardUiState(
     val totalCards: Int = 0,
     val dueCount: Int = 0,
     val suspendedCount: Int = 0,
+    /** Cards derived from READY listener transcripts (Phase 11 provenance). */
+    val lectureCardCount: Int = 0,
     /** Cards in the current due queue. */
     val queue: List<Flashcard> = emptyList(),
     /** Index of the card currently being reviewed. */
@@ -121,6 +123,7 @@ class FlashcardViewModel(context: Context) : ViewModel() {
                 }
                 val dueCount = repo.dueCount(deck.id, now)
                 val suspendedCount = repo.suspendedCount(deck.id)
+                val lectureCardCount = repo.lectureCardCount(deck.id)
                 val queue = repo.dueCards(deck.id, now, REVIEW_LIMIT)
                 // Never enter REVIEW without a session id: grading against a
                 // null session would silently drop every review.
@@ -137,6 +140,7 @@ class FlashcardViewModel(context: Context) : ViewModel() {
                         totalCards = totalCards,
                         dueCount = dueCount,
                         suspendedCount = suspendedCount,
+                        lectureCardCount = lectureCardCount,
                         queue = queue,
                         currentIndex = 0,
                         hasInProgress = resumable,

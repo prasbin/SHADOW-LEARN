@@ -102,6 +102,15 @@ class FlashcardRepository(
         withContext(dispatcher) { flashcardDao.cardCount(deckId) }
 
     /**
+     * Returns the number of lecture cards (from READY listener transcripts)
+     * in [deckId]. Derived from `sourceListenerSegmentId` — cards are
+     * verbatim snapshots, so this count never depends on later transcript
+     * edits.
+     */
+    suspend fun lectureCardCount(deckId: Long): Int =
+        withContext(dispatcher) { flashcardDao.lectureCardCount(deckId) }
+
+    /**
      * Returns the number of unsuspended cards due at [now].
      */
     suspend fun dueCount(deckId: Long, now: Long): Int =

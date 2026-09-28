@@ -183,6 +183,15 @@ fun ListenerScreen(vm: ListenerViewModel = viewModel(factory = ListenerViewModel
                 }
                 item { SessionSummaryCard(s) }
                 item { TranscriptionCard(s, onTranscribe = { vm.transcribeCurrentSession() }) }
+                if (s.segments.any { it.transcriptStatus == ListenerSegment.STATUS_READY }) {
+                    item {
+                        Text(
+                            "READY transcripts feed flashcard review in the Cards tab.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
                 itemsIndexed(s.segments, key = { _, seg -> seg.id }) { i, seg ->
                     SegmentRow(i, seg) { vm.selectSegment(seg) }
                 }

@@ -524,6 +524,31 @@ No fake mastery percentages. Dark futuristic RPG "SYSTEM" aesthetic.
 
 ---
 
+## Lecture-Card Loop (Phase 11)
+
+**No schema change** - Room stays v7, no migration. READY transcripts
+become reviewable lecture cards through the unchanged Phase 8 build.
+
+- **Data flow:** `FlashcardRepository.buildDeck` already pulled READY
+  segments; `FlashcardViewModel.loadDeck` regenerates on every load, so
+  newly-ready rows appear on the next deck visit without a restart.
+  Cards are verbatim snapshots (front = first sentence, back = full
+  transcript, `Lecture segment #n`); later transcript edits never
+  rewrite them; rebuilds dedupe by `(deckId, contentKey)`.
+- **Provenance (new, derived):** `FlashcardDao.lectureCardCount`
+  counts `sourceListenerSegmentId IS NOT NULL` per deck → repository
+  passthrough → `FlashcardUiState.lectureCardCount` → "Lecture cards:
+  N" deck row (shown only when N > 0). Listener SEGMENTS shows a
+  one-line hint toward the Cards tab when a READY row exists.
+- **Tests (321 total, 16 new `LectureCardLoopTest`):** ready→deck
+  verbatim, multi-session scoping, cross-semester exclusion,
+  pending/failed/short exclusion, idempotent rebuild, refresh picks up
+  newly-ready rows, no rewrite on transcript edit, contentKey
+  stability, empty pool, count query incl. suspended, due-queue
+  inclusion.
+
+---
+
 ## Progression Engine (Phase 9)
 
 **No schema change** - Room stays v7, no migration: XP/level/streak are
