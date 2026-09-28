@@ -147,6 +147,29 @@ object AppContainer {
             ).also { academicProgressRepo = it }
         }
 
+    @Volatile
+    private var backupRepo: com.prasbin.shadowlearn.data.backup.BackupRepository? = null
+
+    /** Phase 13 portable backup: semester export + validated restore. */
+    fun backup(context: Context): com.prasbin.shadowlearn.data.backup.BackupRepository =
+        backupRepo ?: synchronized(this) {
+            backupRepo ?: com.prasbin.shadowlearn.data.backup.BackupRepository(
+                context = context.applicationContext,
+                db = database(context),
+                academicDao = database(context).academicDao(),
+                extractionDao = database(context).extractionDao(),
+                quizDao = database(context).quizDao(),
+                flashcardDao = database(context).flashcardDao(),
+                listenerDao = database(context).listenerDao(),
+                ingest = com.prasbin.shadowlearn.data.ingest.IngestRepository(
+                    context.applicationContext, database(context).academicDao()
+                ),
+                afterAcademicImport = { semesterId ->
+                    extraction(context).processForSemester(semesterId)
+                }
+            ).also { backupRepo = it }
+        }
+
     fun settings(context: Context): SettingsRepository =
         settings ?: synchronized(this) {
             settings ?: SettingsRepository(context.applicationContext).also { settings = it }

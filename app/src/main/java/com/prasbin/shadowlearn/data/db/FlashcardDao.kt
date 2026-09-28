@@ -36,6 +36,14 @@ abstract class FlashcardDao {
     @Query("SELECT * FROM flashcards WHERE id = :id LIMIT 1")
     abstract suspend fun card(id: Long): Flashcard?
 
+    /**
+     * Card lookup by dedup key (Phase 13 event remapping: the exported
+     * flashcardId is installation-local, so events re-attach by contentKey
+     * when the card exists locally).
+     */
+    @Query("SELECT * FROM flashcards WHERE deckId = :deckId AND contentKey = :contentKey LIMIT 1")
+    abstract suspend fun findCardByContentKey(deckId: Long, contentKey: String): Flashcard?
+
     @Query("SELECT * FROM flashcards WHERE deckId = :deckId ORDER BY id")
     abstract suspend fun cardsOfDeck(deckId: Long): List<Flashcard>
 
@@ -120,6 +128,20 @@ abstract class FlashcardDao {
 
     @Query("SELECT * FROM flashcard_review_sessions WHERE id = :id LIMIT 1")
     abstract suspend fun reviewSession(id: Long): ReviewSession?
+
+    /** All review sessions of one deck (Phase 13 export). */
+    @Query("SELECT * FROM flashcard_review_sessions WHERE deckId = :deckId ORDER BY id")
+    abstract suspend fun reviewSessionsOfDeck(deckId: Long): List<ReviewSession>
+
+    /**
+     * Idempotence key for restore: the same exported run must not be
+     * inserted twice (start time is stable across installations).
+     */
+    @Query(
+        "SELECT * FROM flashcard_review_sessions WHERE deckId = :deckId " +
+            "AND startedAt = :startedAt LIMIT 1"
+    )
+    abstract suspend fun findReviewSession(deckId: Long, startedAt: Long): ReviewSession?
 
     @Query(
         "SELECT * FROM flashcard_review_sessions WHERE deckId = :deckId " +

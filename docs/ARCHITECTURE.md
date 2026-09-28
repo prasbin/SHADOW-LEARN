@@ -575,7 +575,47 @@ derived from existing rows; empty database stays honest 0%.
 
 ---
 
-## Progression Engine (Phase 9)
+## Portable Backup (Phase 13)
+
+**No schema change** - Room stays v7, no migration. One versioned ZIP
+per semester: `manifest.json` (format/version/names/counts/hashes/audio
+policy) + `academic/<relativePath>` bytes + `history/*.json` (quiz,
+decks, cards, review sessions/events, listener sessions/segments).
+
+- **Academic reuse:** the `academic/` subtree is re-zipped verbatim and
+  fed to `IngestRepository.importStream`, so NEW/UNCHANGED/CHANGED/
+  DUPLICATE reconcile, SHA-256 dedup, and never-delete come free. Exact
+  `relativePath` reproduction is what makes same-install re-import hit
+  UNCHANGED; empty modules/weeks are preserved via explicit dir entries.
+- **Validation before mutation:** ZIP central directory → manifest
+  presence/shape/version → per-file SHA-256 recompute → history JSON
+  parse. Any failure performs zero writes ("Import failed: \<reason\>",
+  "Processed before failure: 0").
+- **ID remapping:** export ids never trusted. Hierarchy rematches by
+  name (Year → Semester → Module → Week); quiz/review/listener runs
+  dedupe by (scope, seed/start); cards by (deck, contentKey); events
+  and segments attach to remapped parents (cards via contentKey
+  lookup); plain snapshot columns (chunk/academicFile/flashcard ids)
+  preserved as-is per schema docs. Per-record failures are counted and
+  reported, never aborting sibling rows.
+- **History atomicity:** restore runs in one Room `withTransaction`;
+  the academic phase is independently idempotent, so retries converge.
+  Documented boundary: filesystem copies (from the idempotent ingest)
+  are not part of the Room transaction.
+- **Audio policy B:** listener audio excluded; sessions restore with
+  `audioPath=null`, transcripts/statuses verbatim;
+  `audioIncluded=false` + excluded count reported in manifest, UI, and
+  summary. No audio BLOBs anywhere.
+- **UI:** Settings Data section (SAF CreateDocument/OpenDocument) with
+  progress + summaries distinguishing created/unchanged/changed/
+  duplicate/restored/excluded/failed. Streams cross the SAF boundary;
+  the repository only sees `InputStream`/`OutputStream`.
+- **Tests (359 total, 20 new):** `BackupFormatTest` (round-trip +
+  7 rejections) + `BackupRepositoryTest` (export structure,
+  determinism, fresh-DB round-trip with shifted ids, idempotent
+  re-import incl. child rows, reconcile outcomes, history
+  preservation, honest per-record failures, audio exclusion,
+  corrupt/missing/version/hash validation with zero writes).
 
 **No schema change** - Room stays v7, no migration: XP/level/streak are
 derived from existing rows, so the engine can never drift from history.

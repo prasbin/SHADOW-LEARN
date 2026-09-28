@@ -63,6 +63,20 @@ abstract class QuizDao {
     @Query("SELECT * FROM quiz_sessions WHERE status = 'completed' ORDER BY id DESC LIMIT 1")
     abstract suspend fun lastCompleted(): QuizSession?
 
+    /** All sessions of one semester (Phase 13 export; history is semester-scoped). */
+    @Query("SELECT * FROM quiz_sessions WHERE semesterId = :semesterId ORDER BY id")
+    abstract suspend fun sessionsOfSemester(semesterId: Long): List<QuizSession>
+
+    /**
+     * Idempotence key for restore: the same exported run must not be
+     * inserted twice (seed + start time are stable across installations).
+     */
+    @Query(
+        "SELECT * FROM quiz_sessions WHERE semesterId = :semesterId AND seed = :seed " +
+            "AND startedAt = :startedAt LIMIT 1"
+    )
+    abstract suspend fun findQuizSession(semesterId: Long, seed: Long, startedAt: Long): QuizSession?
+
     // ---- history / stats (honest, from real completed rows) ---------------
 
     @Query(

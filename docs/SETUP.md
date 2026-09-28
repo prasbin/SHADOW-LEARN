@@ -49,7 +49,7 @@ E:\Desktop\AGENTS-UP` v2.0\.tools\gradle-8.13\bin\gradle.bat wrapper --gradle-ve
 ```powershell
 .\gradlew.bat assembleDebug          # APK: app\build\outputs\apk\debug\app-debug.apk
 .\gradlew.bat testDebugUnitTest      # unit tests (Robolectric Room tests included)
-.\gradlew.bat testDebugUnitTest assembleDebug   # full Phase 12 check (339 tests)
+.\gradlew.bat testDebugUnitTest assembleDebug   # full Phase 13 check (359 tests)
 .\gradlew.bat :app:installDebug      # needs a device/emulator on adb
 ```
 
@@ -220,4 +220,18 @@ this machine has triggered flaky `ChildProcess.kill` aborts.
   Home showed `Progress: 75%` + "Based on import · extraction ·
   review (3 of 4)." — matching independent recomputation from
   on-device rows. Force-stop + relaunch preserved. No app FATALs.
+- Phase 13 emulator session (2026-09-28, `CE_Test`, API 36, current
+  `app-debug.apk` installed over Phase 12 data, no migration):
+  exported Semester1 from Settings UI (1 file, 17 history rows;
+  manifest pulled to host and inspected — format v1, hashes, counts,
+  `audioIncluded: false` all exact). `pm clear` → imported the same
+  archive via UI → year/semester/module/week/file restored (sha
+  intact), quiz session + question (10 XP), deck + 5 cards, review
+  session (IN_PROGRESS 4/4) + 4 events, listener session + 3 segments
+  (ready/pending/failed preserved, audioPath null); dashboard shows
+  30 XP + 100% progress. Re-import fully idempotent (0 new, 1
+  unchanged, every history kind duplicate, row counts stable).
+  Force-stop + relaunch preserved. No app FATALs. (One real bug found
+  by CE testing and fixed: child history rows were re-inserted on
+  re-import — now guarded by parent novelty.)
 - **REAL DEVICE TESTING: NOT PERFORMED.**

@@ -1,5 +1,7 @@
 package com.prasbin.shadowlearn.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,6 +30,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.prasbin.shadowlearn.BuildConfig
+import com.prasbin.shadowlearn.data.backup.BackupState
+import com.prasbin.shadowlearn.ui.backup.BackupViewModel
 import com.prasbin.shadowlearn.ui.components.SectionCard
 import com.prasbin.shadowlearn.ui.settings.SettingsViewModel
 
@@ -126,11 +130,7 @@ fun SettingsScreen() {
         }
 
         item {
-            SectionCard("Data") {
-                Button(onClick = {}, enabled = false) { Text("Export Data") }
-                Button(onClick = {}, enabled = false) { Text("Import Data") }
-                Text("Backup / restore arrives in a later phase.", style = MaterialTheme.typography.bodyMedium)
-            }
+            BackupDataSection()
         }
 
         item {
@@ -139,6 +139,86 @@ fun SettingsScreen() {
                 Text("Version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
                 Text("Package ${BuildConfig.APPLICATION_ID}")
             }
+        }
+    }
+}
+
+@Composable
+private fun BackupDataSection() {
+    val context = LocalContext.current
+    val vm: BackupViewModel = viewModel(factory = BackupViewModel.factory(context))
+    val s by vm.state.collectAsStateWithLifecycle()
+    val backup = s.backup
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val semId = s.currentSemesterId ?: return@rememberLauncherForActivityResult
+        vm.exportTo(uri, semId, "shadowlearn-semester-$semId-${System.currentTimeMillis()}.zip")
+    }
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        vm.importFrom(uri, uri.toString().substringAfterLast('/').takeLast(64))
+    }
+
+    SectionCard("Data") {
+        Text(
+            "Back up one semester to a portable ZIP (academic files + quiz, " +
+                "flashcard and listener history). Listener audio stays on this " +
+                "device and is never included.",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Button(
+            onClick = { exportLauncher.launch("shadowlearn-backup.zip") },
+            enabled = s.currentSemesterId != null &&
+                backup !is BackupState.Working
+        ) { Text("Export Data") }
+        Button(
+            onClick = { importLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed")) },
+            enabled = backup !is BackupState.Working
+        ) { Text("Import Data") }
+        when (backup) {
+            is BackupState.Working -> Text(
+                "${backup.operation}: ${backup.currentEntry} (${backup.processed}/${backup.total})",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            is BackupState.ExportDone -> {
+                val r = backup.summary
+                Text("Exported ${r.semesterName}: ${r.filesExported} file(s), " +
+                    "${r.historyRecords} history record(s) to ${r.archiveName}.",
+                    style = MaterialTheme.typography.bodyMedium)
+                Text("Audio included: no (${r.excludedAudioCount} recording(s) excluded).",
+                    style = MaterialTheme.typography.bodyMedium)
+                r.failures.forEach { Text(it, style = MaterialTheme.typography.bodyMedium) }
+            }
+            is BackupState.ImportDone -> {
+                val r = backup.summary
+                if (!r.ok) {
+                    Text(r.failureReason ?: "Import failed.",
+                        style = MaterialTheme.typography.bodyMedium)
+                } else {
+                    Text("Imported ${r.semesterName}: ${r.created} new, " +
+                        "${r.unchanged} unchanged, ${r.changed} changed, " +
+                        "${r.duplicate} duplicate.",
+                        style = MaterialTheme.typography.bodyMedium)
+                    val restored = r.history.entries.sortedBy { it.key }
+                        .joinToString { (k, v) -> "$k: $v" }
+                    if (restored.isNotEmpty()) Text("Restored history — $restored.",
+                        style = MaterialTheme.typography.bodyMedium)
+                    Text("Audio included: no (${r.excludedAudioCount} recording(s) excluded).",
+                        style = MaterialTheme.typography.bodyMedium)
+                }
+                r.errors.forEach { Text(it, style = MaterialTheme.typography.bodyMedium) }
+            }
+            is BackupState.Failed -> Text(backup.reason,
+                style = MaterialTheme.typography.bodyMedium)
+            BackupState.Idle -> {}
+        }
+        if (backup !is BackupState.Idle) {
+            Button(onClick = { vm.reset() }) { Text("Clear") }
         }
     }
 }

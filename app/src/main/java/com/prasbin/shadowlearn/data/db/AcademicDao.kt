@@ -45,6 +45,13 @@ interface AcademicDao {
     @Query("SELECT * FROM academic_years ORDER BY sortOrder, name")
     suspend fun getYears(): List<AcademicYear>
 
+    /** Direct lookups for Phase 13 export (names travel in the manifest). */
+    @Query("SELECT * FROM academic_years WHERE id = :id LIMIT 1")
+    suspend fun year(id: Long): AcademicYear?
+
+    @Query("SELECT * FROM semesters WHERE id = :id LIMIT 1")
+    suspend fun semester(id: Long): Semester?
+
     @Query("SELECT * FROM semesters WHERE yearId = :yearId ORDER BY sortOrder, name")
     fun observeSemesters(yearId: Long): Flow<List<Semester>>
 

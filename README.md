@@ -5,9 +5,9 @@ Personal offline-first university learning OS (native Android).
 - Package: `com.prasbin.shadowlearn`
 - UI: Jetpack Compose (Material 3, dark futuristic theme)
 - Data: Room (SQLite) + DataStore + Storage Access Framework
-- Status: **Phase 12 - Derived academic progress.** Home Progress % is
-  computed from real persisted milestones (import · extraction · quiz ·
-  review), never fabricated. Text, OOXML/.docx/
+- Status: **Phase 13 - Portable backup.** Semester export/import as a
+  versioned ZIP (academic files + history), offline, validated before
+  any write. Text, OOXML/.docx/
   .pptx, and PDF extraction with per-file, per-page chunks and an
   incremental FTS index (FTS5 auto-falls back to FTS4), fast honest
   academic search, a fully offline quiz engine over the current
@@ -314,6 +314,48 @@ Personal offline-first university learning OS (native Android).
     independent recomputation. Force-stop + relaunch preserved.
     No app FATALs.
 
+## Features (Phase 13)
+
+- **Portable semester backup, no new tables, no migration** (Room
+  stays v7). One versioned ZIP per semester: `manifest.json`
+  (format/version/names/counts/hashes/audio policy) +
+  `academic/<relativePath>` bytes + `history/*.json` (quiz, decks,
+  cards, review sessions/events, listener sessions/segments).
+  - Academic content reuses the Phase 2/3 pipeline: the `academic/`
+    subtree is re-zipped verbatim and fed to `importStream`, so
+    NEW/UNCHANGED/CHANGED/DUPLICATE reconcile, SHA-256 dedup, and
+    never-delete come free. No second ingestion architecture.
+  - Import is validation-first (ZIP → manifest → hashes → history
+    JSON): any failure performs zero writes ("Import failed:
+    \<reason\>", "Processed before failure: 0"). History restores in
+    one Room transaction; installation-local ids are never trusted —
+    hierarchy rematches by name, runs dedupe by (scope, seed/start),
+    cards by (deck, contentKey), events/segments attach to remapped
+    parents, plain snapshot columns preserved as-is.
+  - Listener audio policy B: audio excluded, metadata/transcripts
+    preserved (`audioIncluded=false`, excluded count reported aloud
+    in UI, manifest, and summary). No audio BLOBs anywhere.
+  - Settings Data section: Export (SAF CreateDocument) + Import (SAF
+    OpenDocument) with honest progress and summaries (created /
+    unchanged / changed / duplicate / restored history / excluded
+    audio / failed). Other tabs untouched.
+  - **20 new Phase 13 tests** (`BackupFormatTest` manifest
+    build/validate/reject + `BackupRepositoryTest` over real Room:
+    export structure, determinism, full round-trip with ID remapping,
+    idempotent re-import, reconcile outcomes, history preservation,
+    honest per-record failures, audio exclusion, corrupt/missing/
+    version/hash validation with zero writes). Total: **359 green**.
+  - **Emulator CE_Test API 36 verified**: install over Phase 12 data;
+    exported Semester1 (1 file, 17 history rows; manifest inspected
+    on host — version, hashes, counts exact). `pm clear` → imported
+    the archive → year/semester/module/week/file, quiz (10 XP),
+    deck + 5 cards, review session + 4 events, listener session +
+    3 segments (ready/pending/failed preserved), dashboard 30 XP +
+    100% progress. Re-import fully idempotent (0 new, all
+    duplicates). Force-stop + relaunch preserved. No app FATALs.
+    (One real bug found by CE testing and fixed: child history rows
+    were re-inserted on re-import — now guarded by parent novelty.)
+
 ## Features (Phase 7)
 
 - **Listener Mode foundation, fully offline** (Room v6 tables
@@ -350,13 +392,13 @@ Requirements and exact commands: see [docs/SETUP.md](docs/SETUP.md).
 Architecture and database / ingest / extraction pipeline: see
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-Status-line: `.\gradlew.bat testDebugUnitTest assembleDebug` (**339 unit
+Status-line: `.\gradlew.bat testDebugUnitTest assembleDebug` (**359 unit
 tests**, including Robolectric Room migrations + end-to-end ingest,
 reconciliation, extraction, Search, the quiz engine over a real FTS4
 index, Listener Mode sessions/segments, Flashcards/SM-2-lite
 spaced review, the Phase 9 progression engine, Phase 10
-listener transcription, the Phase 11 lecture-card loop, and the
-Phase 12 derived-progress engine).
+listener transcription, the Phase 11 lecture-card loop, the Phase 12
+derived-progress engine, and Phase 13 portable backup).
 
 ## Testing status
 
@@ -530,6 +572,24 @@ Phase 12 derived-progress engine).
   formula table incl. empty/partial/full, repository aggregation
   over real Room, volumes never double-count, in-progress quiz
   ignored).
+- **Emulator verification performed - Phase 13 Portable backup**
+  (`CE_Test`, API 36, current build over Phase 12 data, no migration):
+  exported Semester1 via Settings UI (1 file, 17 history rows;
+  manifest pulled to host and inspected — format v1, hashes, counts,
+  `audioIncluded: false` all exact). `pm clear` → imported the same
+  archive via UI → year/semester/module/week/file restored (sha
+  intact), quiz session + question (10 XP), deck + 5 cards, review
+  session (IN_PROGRESS 4/4) + 4 events, listener session + 3 segments
+  (ready/pending/failed preserved, audioPath null); dashboard shows
+  30 XP + 100% progress. Re-import fully idempotent (0 new, 1
+  unchanged, every history kind duplicate, row counts stable).
+  Force-stop + relaunch preserved. No app FATALs.
+  Unit suite for this pass: **359/359** (adds 20 Phase 13 tests:
+  manifest build/validate/rejections, export structure/determinism,
+  round-trip restore with ID remapping, idempotent re-import,
+  reconcile outcomes, history preservation, honest per-record
+  failures, audio exclusion, corrupt/missing/version/hash validation
+  with zero writes).
 
 ## Current limitations
 
@@ -537,7 +597,10 @@ Phase 12 derived-progress engine).
   persisted quiz + flashcard activity, as is the Academic Progress %
   (import · extraction · quiz · review milestones, with an honest
   basis line).
-- Export / Import of saved archives is not yet implemented.
+- Export / Import of saved archives is implemented per semester
+  (Settings Data section): versioned ZIP with manifest, academic
+  content reconciled on import, history restored with ID remapping,
+  listener audio explicitly excluded.
 - Listen records + transcribes via an explicit per-session pass, but no
   real on-device speech engine is bundled yet: without one, segments
   report the honest unavailability reason instead of invented text.
@@ -549,6 +612,6 @@ Phase 12 derived-progress engine).
 
 ## Next
 
-Phase 13 - the ONE next step (see the Phase 12 hand-off prompt).
+Phase 14 - the ONE next step (see the Phase 13 hand-off prompt).
 
 

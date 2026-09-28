@@ -33,6 +33,16 @@ abstract class ListenerDao {
     @Query("SELECT * FROM listener_sessions WHERE semesterId = :semesterId ORDER BY id DESC")
     abstract suspend fun sessionsOfSemester(semesterId: Long): List<ListenerSession>
 
+    /**
+     * Idempotence key for restore: the same exported recording must not be
+     * inserted twice (start time is stable across installations).
+     */
+    @Query(
+        "SELECT * FROM listener_sessions WHERE semesterId = :semesterId " +
+            "AND startedAt = :startedAt LIMIT 1"
+    )
+    abstract suspend fun findListenerSession(semesterId: Long, startedAt: Long): ListenerSession?
+
     @Query("SELECT * FROM listener_segments WHERE sessionId = :sessionId ORDER BY position")
     abstract suspend fun segments(sessionId: Long): List<ListenerSegment>
 
