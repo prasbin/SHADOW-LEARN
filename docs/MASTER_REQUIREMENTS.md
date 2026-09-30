@@ -127,6 +127,10 @@ no secrets in the repo, no keystores/passwords committed.
   LISTEN / SYSTEM) with persistent top-bar Search; all legacy routes kept
   and resolving into groups; 400/400 unit tests; full journey verified on
   Redmi Note 14 5G with screenshots.
+- Cards redesigned as ACADEMIC REVIEW: scope strip, prominent due count,
+  dominant Start/Resume, honest zero-due with real next actions, semantic
+  48dp ratings, demoted suspend, shared components; engine untouched;
+  400/400 unit tests; due/review/zero-due journey verified on Redmi.
 - Working: ZIP ingest + reconcile, extraction (PDF/DOCX/PPTX/TXT),
   FTS4/FTS5 search, deterministic quiz, XP/levels/streak, SM-2-lite
   flashcards + resume, Listener recording + segments, offline Vosk

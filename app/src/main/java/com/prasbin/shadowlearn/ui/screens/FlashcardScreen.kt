@@ -18,6 +18,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -28,19 +29,25 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.prasbin.shadowlearn.data.cards.Rating
-import com.prasbin.shadowlearn.data.db.Flashcard
 import com.prasbin.shadowlearn.ui.cards.FlashcardUiKind
 import com.prasbin.shadowlearn.ui.cards.FlashcardUiState
 import com.prasbin.shadowlearn.ui.cards.FlashcardViewModel
 import com.prasbin.shadowlearn.navigation.Routes
 import com.prasbin.shadowlearn.ui.components.GroupSwitcher
+import com.prasbin.shadowlearn.ui.components.ScopeStrip
+import com.prasbin.shadowlearn.ui.components.SectionCard
+import com.prasbin.shadowlearn.ui.components.StatRow
+import com.prasbin.shadowlearn.ui.theme.WarningAmber
 
 /**
- * Phase 8 Flashcards — spaced review over verbatim corpus cards.
+ * Academic review — "clear my due cards". SYSTEM command module over the
+ * existing SM-2-lite engine: scope strip, prominent due count, one dominant
+ * Start/Resume action, honest zero-due state with real next actions, full
+ * provenance on every card, and semantic 48dp rating controls.
  *
- * States: LOADING, NO_SEMESTER, NO_DECKS, IDLE, REVIEW, RESULTS, ERROR.
- * All card content is verbatim from the source material (never invented).
- * Review scheduling uses SM-2-lite with dueAt as the single canonical timestamp.
+ * States: LOADING, NO_SEMESTER, NO_DECKS, IDLE (due / zero-due), REVIEW,
+ * RESULTS, ERROR. All content is verbatim source material (never invented);
+ * scheduling, XP, and persistence are untouched engine behavior.
  */
 @Composable
 fun FlashcardsScreen(onNavigate: (String) -> Unit = {}) {
@@ -55,12 +62,13 @@ fun FlashcardsScreen(onNavigate: (String) -> Unit = {}) {
     ) {
         item {
             Text(
-                "FLASHCARDS",
-                style = MaterialTheme.typography.headlineMedium,
+                "ACADEMIC REVIEW",
+                style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary
             )
+            Text("Cards", style = MaterialTheme.typography.headlineMedium)
             Text(
-                "Verbatim corpus cards with SM-2-lite spaced review",
+                "Clear your due — verbatim review from your material",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -74,6 +82,8 @@ fun FlashcardsScreen(onNavigate: (String) -> Unit = {}) {
             )
         }
 
+        item { ScopeStrip(s.yearName, s.semesterName) }
+
         when (s.kind) {
             FlashcardUiKind.LOADING -> item { LoadingState() }
             FlashcardUiKind.NO_SEMESTER -> item {
@@ -84,11 +94,24 @@ fun FlashcardsScreen(onNavigate: (String) -> Unit = {}) {
                 ) { Text("OPEN SETTINGS") }
             }
             FlashcardUiKind.NO_DECKS -> item {
-                EmptyState("No flashcard deck found for this semester. Build one from your academic materials, quiz mistakes, and READY listener segments.")
+                EmptyState("No cards exist yet. Cards are built from your material, quiz mistakes, and READY transcripts.")
+                Button(
+                    onClick = { onNavigate(Routes.hierarchyRoot()) },
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                ) { Text("OPEN ACADEMIC MATERIAL") }
+                Spacer(Modifier.height(4.dp))
+                OutlinedButton(
+                    onClick = { onNavigate(Routes.QUIZ) },
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                ) { Text("PRACTICE IN QUIZ") }
             }
             FlashcardUiKind.ERROR -> item { EmptyState("Cards error: ${s.error ?: "unknown"}") }
             FlashcardUiKind.IDLE -> item {
-                DeckView(s, vm::startReview, vm::resumeReview)
+                if (s.dueCount > 0) {
+                    DueReview(s, vm::startReview, vm::resumeReview)
+                } else {
+                    ZeroDue(s, onNavigate)
+                }
             }
             FlashcardUiKind.REVIEW -> item { ReviewView(s, vm::reveal, vm::gradeCurrent, vm::toggleSuspend) }
             FlashcardUiKind.RESULTS -> item { ResultsView(s, vm::newReview, { vm.loadDeck(s.semesterId ?: 0L) }) }
@@ -105,36 +128,71 @@ private fun LoadingState() {
     }
 }
 
+/** Due state: prominent count, one dominant action, deck facts secondary. */
 @Composable
-private fun DeckView(s: FlashcardUiState, onStartReview: () -> Unit, onResumeReview: () -> Unit) {
+private fun DueReview(s: FlashcardUiState, onStartReview: () -> Unit, onResumeReview: () -> Unit) {
+    SectionCard("Due now") {
+        Text(
+            "${s.dueCount}",
+            style = MaterialTheme.typography.headlineLarge,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            if (s.dueCount == 1) "CARD DUE" else "CARDS DUE",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+        if (s.hasInProgress) {
+            Button(
+                onClick = onResumeReview,
+                modifier = Modifier.fillMaxWidth().height(52.dp)
+            ) { Text("RESUME REVIEW") }
+        } else {
+            Button(
+                onClick = onStartReview,
+                modifier = Modifier.fillMaxWidth().height(52.dp)
+            ) { Text("START REVIEW") }
+        }
+    }
+    Spacer(Modifier.height(4.dp))
     SectionCard("Deck: ${s.deckTitle}") {
-        StatRow("Semester", s.semesterName ?: "—")
         StatRow("Total cards", "${s.totalCards}")
-        StatRow("Due now", "${s.dueCount}")
         if (s.lectureCardCount > 0) {
             StatRow("Lecture cards", "${s.lectureCardCount}")
         }
         if (s.suspendedCount > 0) {
             StatRow("Suspended", "${s.suspendedCount}")
         }
-        if (s.hasInProgress) {
-            Spacer(Modifier.height(8.dp))
-            Button(
-                onClick = onResumeReview,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
-            ) {
-                Text("Resume Review")
-            }
-        }
+    }
+}
+
+/**
+ * Zero-due state: never a dead button. The queue is clear; new cards
+ * arrive automatically when material, quiz mistakes, or READY transcripts
+ * appear. Quiz practice is the real card-producing action available now.
+ */
+@Composable
+private fun ZeroDue(s: FlashcardUiState, onNavigate: (String) -> Unit) {
+    SectionCard("Review queue clear") {
+        Text("NO CARDS DUE", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Your current review queue is clear.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(4.dp))
+        StatRow("Cards in deck", "${s.totalCards}")
         Spacer(Modifier.height(8.dp))
         Button(
-            onClick = onStartReview,
-            modifier = Modifier.fillMaxWidth(),
-            enabled = s.dueCount > 0
-        ) {
-            Text("Start Review")
-        }
+            onClick = { onNavigate(Routes.QUIZ) },
+            modifier = Modifier.fillMaxWidth().height(52.dp)
+        ) { Text("PRACTICE IN QUIZ") }
+        Spacer(Modifier.height(4.dp))
+        OutlinedButton(
+            onClick = { onNavigate(Routes.hierarchyRoot()) },
+            modifier = Modifier.fillMaxWidth().height(52.dp)
+        ) { Text("OPEN ACADEMIC MATERIAL") }
     }
 }
 
@@ -148,7 +206,6 @@ private fun ReviewView(
     val card = s.queue.getOrNull(s.currentIndex)
     val progress = if (s.queue.isEmpty()) 0 else (s.currentIndex + 1)
 
-    // Progress bar
     LinearProgressIndicator(
         progress = { if (s.queue.isEmpty()) 0f else progress.toFloat() / s.queue.size },
         modifier = Modifier.fillMaxWidth()
@@ -156,13 +213,12 @@ private fun ReviewView(
     Spacer(Modifier.height(8.dp))
 
     Text(
-        "Card $progress of ${s.queue.size}",
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
+        "CARD $progress OF ${s.queue.size}",
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary
     )
     Spacer(Modifier.height(8.dp))
 
-    // Card
     card?.let { f ->
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -171,17 +227,26 @@ private fun ReviewView(
             Column(Modifier.padding(16.dp)) {
                 if (!s.revealed) {
                     Text(
+                        "QUESTION",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
                         f.front,
                         style = MaterialTheme.typography.headlineSmall,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    Spacer(Modifier.height(8.dp))
-                    Button(onClick = onReveal, modifier = Modifier.fillMaxWidth()) {
-                        Text("Reveal")
+                    Spacer(Modifier.height(12.dp))
+                    Button(
+                        onClick = onReveal,
+                        modifier = Modifier.fillMaxWidth().height(52.dp)
+                    ) {
+                        Text("REVEAL ANSWER")
                     }
                 } else {
                     Text(
-                        "Answer",
+                        "ANSWER",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -203,18 +268,18 @@ private fun ReviewView(
         }
     }
 
-    Spacer(Modifier.height(8.dp))
+    Spacer(Modifier.height(4.dp))
 
-    // Suspend toggle
     if (card != null) {
-        Button(
+        TextButton(
             onClick = onToggleSuspend,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (card.suspended) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
-            )
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Text(if (card.suspended) "Resume Card" else "Suspend Card")
+            Text(
+                if (card.suspended) "UNSUSPEND THIS CARD" else "SUSPEND THIS CARD",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -232,21 +297,30 @@ private fun RatingButtons(onGrade: (Rating) -> Unit) {
     }
 }
 
+/**
+ * Semantic rating hierarchy: AGAIN warns (amber), HARD stays neutral,
+ * GOOD is primary, EASY is teal. All 48dp, readable labels, no glow.
+ */
 @Composable
 private fun RowScope.RatingButton(rating: Rating, label: String, onGrade: (Rating) -> Unit) {
+    val container = when (rating) {
+        Rating.AGAIN -> WarningAmber
+        Rating.HARD -> MaterialTheme.colorScheme.surfaceVariant
+        Rating.GOOD -> MaterialTheme.colorScheme.primary
+        Rating.EASY -> MaterialTheme.colorScheme.tertiaryContainer
+    }
+    val content = when (rating) {
+        Rating.AGAIN -> MaterialTheme.colorScheme.onPrimary
+        Rating.HARD -> MaterialTheme.colorScheme.onSurface
+        Rating.GOOD -> MaterialTheme.colorScheme.onPrimary
+        Rating.EASY -> MaterialTheme.colorScheme.onTertiaryContainer
+    }
     Button(
         onClick = { onGrade(rating) },
-        modifier = Modifier.weight(1f),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = when (rating) {
-                Rating.AGAIN -> MaterialTheme.colorScheme.error
-                Rating.HARD -> MaterialTheme.colorScheme.tertiary
-                Rating.GOOD -> MaterialTheme.colorScheme.primary
-                Rating.EASY -> MaterialTheme.colorScheme.tertiaryContainer
-            }
-        )
+        modifier = Modifier.weight(1f).height(48.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = container, contentColor = content)
     ) {
-        Text(label, style = MaterialTheme.typography.labelSmall)
+        Text(label, style = MaterialTheme.typography.labelMedium)
     }
 }
 
@@ -263,12 +337,12 @@ private fun ResultsView(s: FlashcardUiState, onNewReview: () -> Unit, onBackToDe
             )
         }
         Spacer(Modifier.height(8.dp))
-        Button(onClick = onNewReview, modifier = Modifier.fillMaxWidth()) {
-            Text("New Review")
+        Button(onClick = onNewReview, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+            Text("NEW REVIEW")
         }
         Spacer(Modifier.height(8.dp))
-        Button(onClick = onBackToDeck, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-            Text("Back to Deck")
+        OutlinedButton(onClick = onBackToDeck, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+            Text("BACK TO DECK")
         }
     }
 }
@@ -283,24 +357,4 @@ private fun EmptyState(message: String) {
         )
     }
 }
-
-@Composable
-private fun SectionCard(title: String, content: @Composable () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(8.dp))
-            content()
-        }
-    }
-}
-
-@Composable
-private fun StatRow(label: String, value: String) {
-    Text("$label: $value", style = MaterialTheme.typography.bodyLarge)
-}
-
 

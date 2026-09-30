@@ -20,6 +20,8 @@ val AccentPurple = Color(0xFF9D7BFF)
 val AccentTeal = Color(0xFF5EEAD4)
 val TextPrimary = Color(0xFFE8ECF8)
 val TextSecondary = Color(0xFF9AA3C0)
+/** Restrained warning amber: AGAIN ratings and genuine attention states only. */
+val WarningAmber = Color(0xFFD9A13B)
 
 private val DarkScheme = darkColorScheme(
     primary = AccentBlue,
