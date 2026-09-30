@@ -208,3 +208,42 @@ NEXT ACTION:
 ```
 
 This rule is permanent and survives all future sessions.
+
+## 21. UI/UX acceptance and phone-first validation (permanent)
+
+A feature is NOT complete when code compiles + tests pass. It is
+complete only when product purpose + UI/UX + real data + functionality
++ phone usability + tests + master requirements all agree.
+
+- Unified design system: dark-first command-center identity; semantic
+  colors, one typography scale, one spacing rhythm, shared components.
+  No screen invents its own styles, sizes, or spacing.
+- Action-first screens: every screen defines its primary question,
+  primary action, secondary action, and exit/back path. No isolated
+  feature screens — every screen connects to the student's next action.
+- System shell: shared header / body / bottom navigation / back /
+  transitions / dialogs / status conventions; hierarchy screens always
+  answer where am I, what can I open, what next.
+- Navigation hierarchy over flat tabs: bottom navigation must
+  communicate product structure (Home / Academic / Study / Listen /
+  System direction), not N equal-weight destinations. Never remove a
+  working destination without understanding its purpose.
+- Verified vs generated distinction is visual: verified academic
+  content carries provenance; generated content is labeled and never
+  mimics lecture sources.
+- Phone-first validation: the target is the user's physical Android
+  phone (portrait, touch, ~48dp targets, system bars, notches).
+  Every UI session: build APK → CE_Test → phone when available →
+  visually inspect → correct. Never claim phone validation from the
+  emulator alone; mark pending honestly.
+
+## 22. UI session workflow (permanent)
+
+1. Define user problem. 2. Define desired interaction. 3. Define
+visual result. 4. Inspect existing implementation. 5. Implement
+smallest vertical slice. 6. Build APK. 7. Install on CE_Test.
+8. Install on phone when available. 9. Visually inspect. 10. Correct.
+11. Test. 12. Master Requirements Check. 13. GitHub backup. 14. STOP.
+
+No more database-feature → tests → next-feature without
+product/UX validation.
