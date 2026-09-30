@@ -23,6 +23,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.prasbin.shadowlearn.navigation.Routes
 import com.prasbin.shadowlearn.ui.components.SectionCard
+import com.prasbin.shadowlearn.ui.components.GroupSwitcher
 import com.prasbin.shadowlearn.ui.components.StatRow
 import com.prasbin.shadowlearn.ui.progress.ProgressViewModel
 
@@ -55,6 +56,13 @@ fun ProgressScreen(onNavigate: (String) -> Unit = {}) {
                     style = MaterialTheme.typography.headlineMedium
                 )
             }
+        }
+        item {
+            GroupSwitcher(
+                options = listOf("STATUS", "SETTINGS"),
+                selectedIndex = 0,
+                onSelect = { if (it == 1) onNavigate(Routes.SETTINGS) }
+            )
         }
         item {
             SectionCard("Academic Progress") {

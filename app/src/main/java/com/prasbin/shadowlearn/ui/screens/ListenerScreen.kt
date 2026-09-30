@@ -44,6 +44,7 @@ import com.prasbin.shadowlearn.ui.components.SectionCard
 import com.prasbin.shadowlearn.ui.listener.ListenerUiKind
 import com.prasbin.shadowlearn.ui.listener.ListenerUiState
 import com.prasbin.shadowlearn.ui.listener.ListenerViewModel
+import com.prasbin.shadowlearn.navigation.Routes
 
 /**
  * Phase 7 Listener Mode — lecture recording + transcript-ready segments —
@@ -55,7 +56,10 @@ import com.prasbin.shadowlearn.ui.listener.ListenerViewModel
  * speech. Transcription is explicit per session, never background work.
  */
 @Composable
-fun ListenerScreen(vm: ListenerViewModel = viewModel(factory = ListenerViewModel.factory(LocalContext.current))) {
+fun ListenerScreen(
+    vm: ListenerViewModel = viewModel(factory = ListenerViewModel.factory(LocalContext.current)),
+    onNavigate: (String) -> Unit = {}
+) {
     val s by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -105,6 +109,10 @@ fun ListenerScreen(vm: ListenerViewModel = viewModel(factory = ListenerViewModel
             ListenerUiKind.NO_SEMESTER -> item {
                 SectionCard("No semester selected") {
                     Text("Select an academic year and semester in Settings to attach recordings to.")
+                    TextButton(
+                        onClick = { onNavigate(Routes.SETTINGS) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("OPEN SETTINGS") }
                 }
             }
             ListenerUiKind.IDLE -> {

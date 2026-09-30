@@ -33,11 +33,13 @@ import com.prasbin.shadowlearn.BuildConfig
 import com.prasbin.shadowlearn.data.backup.BackupState
 import com.prasbin.shadowlearn.ui.backup.BackupViewModel
 import com.prasbin.shadowlearn.ui.components.SectionCard
+import com.prasbin.shadowlearn.ui.components.GroupSwitcher
+import com.prasbin.shadowlearn.navigation.Routes
 import com.prasbin.shadowlearn.ui.settings.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(onNavigate: (String) -> Unit = {}) {
     val context = LocalContext.current
     val vm: SettingsViewModel = viewModel(factory = SettingsViewModel.factory(context))
     val s by vm.state.collectAsStateWithLifecycle()
@@ -52,6 +54,14 @@ fun SettingsScreen() {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item { Text("Settings", style = MaterialTheme.typography.headlineMedium) }
+
+        item {
+            GroupSwitcher(
+                options = listOf("STATUS", "SETTINGS"),
+                selectedIndex = 1,
+                onSelect = { if (it == 0) onNavigate(Routes.PROGRESS) }
+            )
+        }
 
         item {
             SectionCard("Academic Year") {

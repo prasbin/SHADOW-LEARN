@@ -1,15 +1,21 @@
 package com.prasbin.shadowlearn.navigation
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -28,29 +34,65 @@ import com.prasbin.shadowlearn.ui.screens.QuizScreen
 import com.prasbin.shadowlearn.ui.screens.SearchScreen
 import com.prasbin.shadowlearn.ui.screens.SettingsScreen
 
-/** Bottom-bar navigation shell; each destination owns its future feature module. */
+/**
+ * SYSTEM navigation shell: five bottom groups (HOME/ACADEMIC/STUDY/LISTEN/
+ * SYSTEM) plus a persistent top-bar Search action. Grouped destinations
+ * keep their own routes (quiz/cards, status/settings) with a shared
+ * in-screen switcher; tapping the open group is a no-op so state is kept.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppNav() {
     val navController = rememberNavController()
+    val backStack by navController.currentBackStackEntryAsState()
+    val currentRoute = backStack?.destination?.route
+    val currentTab = tabForRoute(currentRoute)
+    val go = { route: String ->
+        navController.navigate(route) { launchSingleTop = true }
+    }
     Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        (currentTab?.label ?: "SEARCH").uppercase(),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                },
+                actions = {
+                    if (currentRoute != Routes.SEARCH) {
+                        IconButton(onClick = { go(Routes.SEARCH) }) {
+                            Icon(
+                                Icons.Filled.Search,
+                                contentDescription = "Search academic material"
+                            )
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            )
+        },
         bottomBar = {
             NavigationBar {
-                val backStack by navController.currentBackStackEntryAsState()
-                val current = backStack?.destination
-                destinations.forEach { dest ->
+                NavTab.entries.forEach { tab ->
                     NavigationBarItem(
-                        selected = current?.hierarchy?.any { it.route == dest.route } == true,
+                        selected = currentTab == tab,
                         onClick = {
-                            navController.navigate(dest.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+                            if (currentTab != tab) {
+                                navController.navigate(tab.defaultRoute) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
                             }
                         },
-                        icon = { Icon(dest.icon, contentDescription = dest.label) },
-                        label = { Text(dest.label) }
+                        icon = { Icon(tab.icon, contentDescription = tab.label) },
+                        label = { Text(tab.label) }
                     )
                 }
             }
@@ -62,18 +104,11 @@ fun AppNav() {
             modifier = Modifier.padding(inner)
         ) {
             composable(Routes.DASHBOARD) {
-                DashboardScreen(onNavigate = { route ->
-                    navController.navigate(route) { launchSingleTop = true }
-                })
+                DashboardScreen(onNavigate = go)
             }
-            composable(Routes.ACADEMIC) { AcademicScreen() }
+            composable(Routes.ACADEMIC) { AcademicScreen(onNavigate = go) }
             composable(Routes.HIERARCHY) {
-                HierarchyScreen(
-                    level = HierarchyLevel.Years,
-                    onNavigate = { route ->
-                        navController.navigate(route) { launchSingleTop = true }
-                    }
-                )
+                HierarchyScreen(level = HierarchyLevel.Years, onNavigate = go)
             }
             composable(
                 route = "${Routes.HIERARCHY_YEAR}/{yearId}",
@@ -81,9 +116,7 @@ fun AppNav() {
             ) { entry ->
                 HierarchyScreen(
                     level = HierarchyLevel.Semesters(entry.arguments?.getLong("yearId") ?: -1),
-                    onNavigate = { route ->
-                        navController.navigate(route) { launchSingleTop = true }
-                    }
+                    onNavigate = go
                 )
             }
             composable(
@@ -92,9 +125,7 @@ fun AppNav() {
             ) { entry ->
                 HierarchyScreen(
                     level = HierarchyLevel.Modules(entry.arguments?.getLong("semesterId") ?: -1),
-                    onNavigate = { route ->
-                        navController.navigate(route) { launchSingleTop = true }
-                    }
+                    onNavigate = go
                 )
             }
             composable(
@@ -103,9 +134,7 @@ fun AppNav() {
             ) { entry ->
                 HierarchyScreen(
                     level = HierarchyLevel.Weeks(entry.arguments?.getLong("moduleId") ?: -1),
-                    onNavigate = { route ->
-                        navController.navigate(route) { launchSingleTop = true }
-                    }
+                    onNavigate = go
                 )
             }
             composable(
@@ -114,21 +143,15 @@ fun AppNav() {
             ) { entry ->
                 HierarchyScreen(
                     level = HierarchyLevel.Files(entry.arguments?.getLong("weekId") ?: -1),
-                    onNavigate = { route ->
-                        navController.navigate(route) { launchSingleTop = true }
-                    }
+                    onNavigate = go
                 )
             }
-            composable(Routes.SEARCH) { SearchScreen() }
-            composable(Routes.QUIZ) { QuizScreen() }
-            composable(Routes.LISTENER) { ListenerScreen() }
-            composable(Routes.FLASHCARDS) { FlashcardsScreen() }
-            composable(Routes.PROGRESS) {
-                ProgressScreen(onNavigate = { route ->
-                    navController.navigate(route) { launchSingleTop = true }
-                })
-            }
-            composable(Routes.SETTINGS) { SettingsScreen() }
+            composable(Routes.SEARCH) { SearchScreen(onNavigate = go) }
+            composable(Routes.QUIZ) { QuizScreen(onNavigate = go) }
+            composable(Routes.LISTENER) { ListenerScreen(onNavigate = go) }
+            composable(Routes.FLASHCARDS) { FlashcardsScreen(onNavigate = go) }
+            composable(Routes.PROGRESS) { ProgressScreen(onNavigate = go) }
+            composable(Routes.SETTINGS) { SettingsScreen(onNavigate = go) }
         }
     }
 }

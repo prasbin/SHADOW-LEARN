@@ -1,14 +1,11 @@
 package com.prasbin.shadowlearn.navigation
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Style
 import androidx.compose.ui.graphics.vector.ImageVector
 
 object Routes {
@@ -35,14 +32,30 @@ object Routes {
 
 data class Destination(val route: String, val label: String, val icon: ImageVector)
 
-/** The 8 Phase 1 sections. Order defines the bottom-bar layout. */
-val destinations = listOf(
-    Destination(Routes.DASHBOARD, "Home", Icons.Filled.Home),
-    Destination(Routes.ACADEMIC, "Academic", Icons.Filled.School),
-    Destination(Routes.SEARCH, "Search", Icons.Filled.Search),
-    Destination(Routes.QUIZ, "Quiz", Icons.Filled.Quiz),
-    Destination(Routes.LISTENER, "Listen", Icons.Filled.Mic),
-    Destination(Routes.FLASHCARDS, "Cards", Icons.Filled.Style),
-    Destination(Routes.PROGRESS, "Progress", Icons.AutoMirrored.Filled.TrendingUp),
-    Destination(Routes.SETTINGS, "Settings", Icons.Filled.Settings)
-)
+/**
+ * SYSTEM bottom navigation: five groups replace the eight flat tabs.
+ * Every legacy route still exists and resolves into exactly one group
+ * (or null for the standalone Search action). STUDY defaults to Quiz,
+ * SYSTEM defaults to Academic Status; tapping an already-open group
+ * is a no-op so state is never reset.
+ */
+enum class NavTab(val label: String, val icon: ImageVector, val defaultRoute: String) {
+    HOME("Home", Icons.Filled.Home, Routes.DASHBOARD),
+    ACADEMIC("Academic", Icons.Filled.School, Routes.ACADEMIC),
+    STUDY("Study", Icons.Filled.Quiz, Routes.QUIZ),
+    LISTEN("Listen", Icons.Filled.Mic, Routes.LISTENER),
+    SYSTEM("System", Icons.Filled.Settings, Routes.PROGRESS)
+}
+
+/** Group owning [route]; null for standalone destinations (Search) or unknown. */
+fun tabForRoute(route: String?): NavTab? {
+    if (route == null) return null
+    return when {
+        route == Routes.DASHBOARD -> NavTab.HOME
+        route == Routes.ACADEMIC || route.startsWith(Routes.HIERARCHY) -> NavTab.ACADEMIC
+        route == Routes.QUIZ || route == Routes.FLASHCARDS -> NavTab.STUDY
+        route == Routes.LISTENER -> NavTab.LISTEN
+        route == Routes.PROGRESS || route == Routes.SETTINGS -> NavTab.SYSTEM
+        else -> null
+    }
+}

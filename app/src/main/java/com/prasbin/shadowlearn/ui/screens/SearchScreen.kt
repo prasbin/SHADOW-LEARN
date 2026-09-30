@@ -48,6 +48,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.prasbin.shadowlearn.data.search.SearchResult
 import com.prasbin.shadowlearn.ui.search.SearchUiKind
 import com.prasbin.shadowlearn.ui.search.SearchViewModel
+import com.prasbin.shadowlearn.navigation.Routes
 
 /**
  * Phase 5 Academic Search — the SYSTEM-style search HUD over the Phase 4
@@ -56,7 +57,7 @@ import com.prasbin.shadowlearn.ui.search.SearchViewModel
  * content / no semester) is explicit and honest.
  */
 @Composable
-fun SearchScreen() {
+fun SearchScreen(onNavigate: (String) -> Unit = {}) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val vm: SearchViewModel = viewModel(factory = SearchViewModel.factory(context))
     val s by vm.state.collectAsStateWithLifecycle()
@@ -109,6 +110,10 @@ fun SearchScreen() {
             SearchUiKind.EMPTY -> item { EmptyState("Type a query to search the current semester's indexed material.") }
             SearchUiKind.NO_SEMESTER -> item {
                 EmptyState("No semester configured. Select a year and semester in Settings, or import a semester ZIP in the Academic tab.")
+                TextButton(
+                    onClick = { onNavigate(Routes.SETTINGS) },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("OPEN SETTINGS") }
             }
             SearchUiKind.NO_INDEXED -> item {
                 EmptyState("No indexed academic content in this semester yet. Import a semester ZIP in the Academic tab to build the search index.")

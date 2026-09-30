@@ -20,6 +20,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -36,6 +37,7 @@ import com.prasbin.shadowlearn.data.ingest.IngestState
 import com.prasbin.shadowlearn.ui.components.SectionCard
 import com.prasbin.shadowlearn.ui.components.StatRow
 import com.prasbin.shadowlearn.ui.ingest.IngestViewModel
+import com.prasbin.shadowlearn.navigation.Routes
 import com.prasbin.shadowlearn.util.formatBytes
 
 private data class PickedZip(val uri: Uri, val name: String, val size: Long)
@@ -47,7 +49,7 @@ private data class PickedZip(val uri: Uri, val name: String, val size: Long)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AcademicScreen() {
+fun AcademicScreen(onNavigate: (String) -> Unit = {}) {
     val context = LocalContext.current
     val vm: IngestViewModel = viewModel(factory = IngestViewModel.factory(context))
     val s by vm.state.collectAsStateWithLifecycle()
@@ -120,7 +122,11 @@ fun AcademicScreen() {
                     StatRow("Size", formatBytes(z.size))
                 }
                 if (s.currentSemesterId == null) {
-                    Text("Select a year and semester first (Settings tab can create them).")
+                    Text("Select a year and semester first (System → Settings can create them).")
+                    TextButton(
+                        onClick = { onNavigate(Routes.SETTINGS) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("OPEN SETTINGS") }
                 }
                 ImportStatus(s.ingest)
                 ExtractionStatus(s.extraction)

@@ -24,6 +24,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -42,6 +43,8 @@ import com.prasbin.shadowlearn.ui.quiz.QuizFeedback
 import com.prasbin.shadowlearn.ui.quiz.QuizUiKind
 import com.prasbin.shadowlearn.ui.quiz.QuizUiState
 import com.prasbin.shadowlearn.ui.quiz.QuizViewModel
+import com.prasbin.shadowlearn.navigation.Routes
+import com.prasbin.shadowlearn.ui.components.GroupSwitcher
 import java.util.Locale
 
 /**
@@ -51,7 +54,7 @@ import java.util.Locale
  * Fully choice-based (no text input), scoped to the DataStore semester.
  */
 @Composable
-fun QuizScreen() {
+fun QuizScreen(onNavigate: (String) -> Unit = {}) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val vm: QuizViewModel = viewModel(factory = QuizViewModel.factory(context))
     val s by vm.state.collectAsStateWithLifecycle()
@@ -76,6 +79,14 @@ fun QuizScreen() {
 
         item { ScopeIndicator(s) }
 
+        item {
+            GroupSwitcher(
+                options = listOf("QUIZ", "CARDS"),
+                selectedIndex = 0,
+                onSelect = { if (it == 1) onNavigate(Routes.FLASHCARDS) }
+            )
+        }
+
         when (s.kind) {
             QuizUiKind.LOADING -> item {
                 Column {
@@ -86,6 +97,10 @@ fun QuizScreen() {
             }
             QuizUiKind.NO_SEMESTER -> item {
                 EmptyState("No semester configured. Select a year and semester in Settings, or import a semester ZIP in the Academic tab.")
+                TextButton(
+                    onClick = { onNavigate(Routes.SETTINGS) },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("OPEN SETTINGS") }
             }
             QuizUiKind.NO_INDEXED -> item {
                 EmptyState("No indexed academic content in this semester yet. Import a semester ZIP in the Academic tab to build quiz content.")

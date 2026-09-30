@@ -123,6 +123,10 @@ no secrets in the repo, no keystores/passwords committed.
   percent/basis, milestone presence flags, same Phase 9 level/XP/streak,
   scope names, OPEN ACADEMIC MATERIAL action; 398/398 unit tests;
   verified on CE_Test against Home values via view hierarchy.
+- Navigation consolidated into 5 SYSTEM groups (HOME / ACADEMIC / STUDY /
+  LISTEN / SYSTEM) with persistent top-bar Search; all legacy routes kept
+  and resolving into groups; 400/400 unit tests; full journey verified on
+  Redmi Note 14 5G with screenshots.
 - Working: ZIP ingest + reconcile, extraction (PDF/DOCX/PPTX/TXT),
   FTS4/FTS5 search, deterministic quiz, XP/levels/streak, SM-2-lite
   flashcards + resume, Listener recording + segments, offline Vosk
@@ -131,7 +135,7 @@ no secrets in the repo, no keystores/passwords committed.
 
 ## 14. Known gaps
 
-- 8 flat tabs; Home rows and Academic Status cross-navigate into them.
+- 5 bottom groups; Home rows and Academic Status cross-navigate into them.
 - Concept-level weakness detection not yet possible (no topic
   taxonomy); Home shows file-level signals only, labeled as such.
 - Semester scope UX is fragile (autocomplete junk observed on device).

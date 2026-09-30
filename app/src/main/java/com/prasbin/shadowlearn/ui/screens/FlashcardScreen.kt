@@ -19,6 +19,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -31,6 +32,8 @@ import com.prasbin.shadowlearn.data.db.Flashcard
 import com.prasbin.shadowlearn.ui.cards.FlashcardUiKind
 import com.prasbin.shadowlearn.ui.cards.FlashcardUiState
 import com.prasbin.shadowlearn.ui.cards.FlashcardViewModel
+import com.prasbin.shadowlearn.navigation.Routes
+import com.prasbin.shadowlearn.ui.components.GroupSwitcher
 
 /**
  * Phase 8 Flashcards — spaced review over verbatim corpus cards.
@@ -40,7 +43,7 @@ import com.prasbin.shadowlearn.ui.cards.FlashcardViewModel
  * Review scheduling uses SM-2-lite with dueAt as the single canonical timestamp.
  */
 @Composable
-fun FlashcardsScreen() {
+fun FlashcardsScreen(onNavigate: (String) -> Unit = {}) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val vm: FlashcardViewModel = viewModel(factory = FlashcardViewModel.factory(context))
     val s by vm.state.collectAsStateWithLifecycle()
@@ -63,10 +66,22 @@ fun FlashcardsScreen() {
             )
         }
 
+        item {
+            GroupSwitcher(
+                options = listOf("QUIZ", "CARDS"),
+                selectedIndex = 1,
+                onSelect = { if (it == 0) onNavigate(Routes.QUIZ) }
+            )
+        }
+
         when (s.kind) {
             FlashcardUiKind.LOADING -> item { LoadingState() }
             FlashcardUiKind.NO_SEMESTER -> item {
                 EmptyState("No semester configured. Select a year and semester in Settings.")
+                TextButton(
+                    onClick = { onNavigate(Routes.SETTINGS) },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("OPEN SETTINGS") }
             }
             FlashcardUiKind.NO_DECKS -> item {
                 EmptyState("No flashcard deck found for this semester. Build one from your academic materials, quiz mistakes, and READY listener segments.")
