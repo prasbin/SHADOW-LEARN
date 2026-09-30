@@ -17,6 +17,7 @@ import com.prasbin.shadowlearn.data.db.Semester
 import com.prasbin.shadowlearn.data.db.ShadowLearnDatabase
 import com.prasbin.shadowlearn.data.db.Week
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -175,5 +176,39 @@ class AcademicProgressRepositoryTest {
             )
         )
         assertEquals(25, repo.current().percent)
+    }
+
+    @Test
+    fun milestones_emptyDatabaseAllFalse() = runBlocking {
+        val m = repo.observeMilestones().first()
+        assertEquals(false, m.hasImport)
+        assertEquals(false, m.hasExtraction)
+        assertEquals(false, m.hasQuiz)
+        assertEquals(false, m.hasReview)
+    }
+
+    @Test
+    fun milestones_partialHistoryOnlyReachedFlags() = runBlocking {
+        seedChunk(seedFile())
+        val m = repo.observeMilestones().first()
+        assertEquals(true, m.hasImport)
+        assertEquals(true, m.hasExtraction)
+        assertEquals(false, m.hasQuiz)
+        assertEquals(false, m.hasReview)
+    }
+
+    @Test
+    fun milestones_agreeWithPercentAndBasis() = runBlocking {
+        seedChunk(seedFile())
+        completedQuiz()
+        reviewEvent()
+        val m = repo.observeMilestones().first()
+        assertEquals(true, m.hasImport)
+        assertEquals(true, m.hasExtraction)
+        assertEquals(true, m.hasQuiz)
+        assertEquals(true, m.hasReview)
+        val p = repo.current()
+        assertEquals(100, p.percent)
+        assertEquals("import · extraction · quiz · review (4 of 4)", p.basis)
     }
 }

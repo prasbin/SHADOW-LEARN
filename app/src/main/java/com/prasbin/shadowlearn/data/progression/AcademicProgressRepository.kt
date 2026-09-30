@@ -22,6 +22,18 @@ data class AcademicProgress(
 )
 
 /**
+ * The four binary milestones behind [AcademicProgress], exposed so the
+ * Academic Status screen can explain the basis without inventing
+ * counts. Same row signals, same semantics — never a new formula.
+ */
+data class ProgressMilestones(
+    val hasImport: Boolean = false,
+    val hasExtraction: Boolean = false,
+    val hasQuiz: Boolean = false,
+    val hasReview: Boolean = false
+)
+
+/**
  * The ONE authoritative academic-progress calculation path. Combines four
  * existing row-count signals (files, chunks, completed quiz sessions,
  * review events) into the dashboard Progress %. The UI never queries Room
@@ -59,6 +71,21 @@ class AcademicProgressRepository(
             hasExtraction = extractionDao.totalChunkCount() > 0,
             hasQuiz = quizDao.completedCount() > 0,
             hasReview = flashcardDao.reviewActivity().isNotEmpty()
+        )
+    }
+
+    /** Reactive milestone flags — the same four signals behind [observe]. */
+    fun observeMilestones(): Flow<ProgressMilestones> = combine(
+        academicDao.observeFileCount(),
+        extractionDao.observeChunkCount(),
+        quizDao.observeSummary(),
+        flashcardDao.observeReviewActivity()
+    ) { files, chunks, summary, activity ->
+        ProgressMilestones(
+            hasImport = files > 0,
+            hasExtraction = chunks > 0,
+            hasQuiz = summary.sessions > 0,
+            hasReview = activity.isNotEmpty()
         )
     }
 

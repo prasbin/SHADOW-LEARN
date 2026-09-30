@@ -123,7 +123,11 @@ fun AppNav() {
             composable(Routes.QUIZ) { QuizScreen() }
             composable(Routes.LISTENER) { ListenerScreen() }
             composable(Routes.FLASHCARDS) { FlashcardsScreen() }
-            composable(Routes.PROGRESS) { ProgressScreen() }
+            composable(Routes.PROGRESS) {
+                ProgressScreen(onNavigate = { route ->
+                    navController.navigate(route) { launchSingleTop = true }
+                })
+            }
             composable(Routes.SETTINGS) { SettingsScreen() }
         }
     }

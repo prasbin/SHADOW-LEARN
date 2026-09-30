@@ -119,6 +119,10 @@ no secrets in the repo, no keystores/passwords committed.
   honest empty states, CURRENT scope markers, file rows show provenance
   only (no viewer yet); 395/395 unit tests; full journey verified on
   CE_Test via view hierarchy.
+- Progress destination ships as ACADEMIC STATUS: same Phase 12
+  percent/basis, milestone presence flags, same Phase 9 level/XP/streak,
+  scope names, OPEN ACADEMIC MATERIAL action; 398/398 unit tests;
+  verified on CE_Test against Home values via view hierarchy.
 - Working: ZIP ingest + reconcile, extraction (PDF/DOCX/PPTX/TXT),
   FTS4/FTS5 search, deterministic quiz, XP/levels/streak, SM-2-lite
   flashcards + resume, Listener recording + segments, offline Vosk
@@ -127,8 +131,7 @@ no secrets in the repo, no keystores/passwords committed.
 
 ## 14. Known gaps
 
-- Progress tab is a ComingSoon placeholder (contradicts shipped XP).
-- 8 flat tabs; Home rows now cross-navigate into them.
+- 8 flat tabs; Home rows and Academic Status cross-navigate into them.
 - Concept-level weakness detection not yet possible (no topic
   taxonomy); Home shows file-level signals only, labeled as such.
 - Semester scope UX is fragile (autocomplete junk observed on device).
