@@ -49,7 +49,7 @@ E:\Desktop\AGENTS-UP` v2.0\.tools\gradle-8.13\bin\gradle.bat wrapper --gradle-ve
 ```powershell
 .\gradlew.bat assembleDebug          # APK: app\build\outputs\apk\debug\app-debug.apk
 .\gradlew.bat testDebugUnitTest      # unit tests (Robolectric Room tests included)
-.\gradlew.bat testDebugUnitTest assembleDebug   # full Phase 13 check (359 tests)
+.\gradlew.bat testDebugUnitTest assembleDebug   # full Phase 14 check (382 tests)
 .\gradlew.bat :app:installDebug      # needs a device/emulator on adb
 ```
 
@@ -234,4 +234,17 @@ this machine has triggered flaky `ChildProcess.kill` aborts.
   Force-stop + relaunch preserved. No app FATALs. (One real bug found
   by CE testing and fixed: child history rows were re-inserted on
   re-import — now guarded by parent novelty.)
+- Phase 14 emulator session (2026-09-29/30, `CE_Test`, API 36, current
+  `app-debug.apk` installed over Phase 13 data, no migration):
+  recorded a real ~2-minute session (live amplitude 71–114), stopped,
+  tapped TRANSCRIBE — first run unpacked the 41 MB model to
+  app-private storage and loaded native Vosk (logcat `VoskAPI`
+  ivector/graph lines). First attempt OOMed the 192 MB heap on a
+  3-minute whole-file PCM buffer (honest FAILED rows, no crash);
+  after the streaming-temp-file fix, the pipeline runs flat. The
+  silent emulator mic correctly yields empty engine output → honest
+  FAILED ("engine returned empty text"), DB + UI agree; Cards deck
+  intact (5 cards, 1 lecture). Force-stop + relaunch preserved. No
+  app FATALs. APK grew 20,339,200 → 81,883,512 bytes (+61,544,312:
+  ~41 MB model + ~20 MB native .so for 2 ABIs).
 - **REAL DEVICE TESTING: NOT PERFORMED.**

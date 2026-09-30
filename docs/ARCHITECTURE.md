@@ -697,6 +697,48 @@ carry no audio path of their own.
 
 ---
 
+## Bundled STT Engine (Phase 14)
+
+**No schema change** - Room stays v7, no migration. The Phase 10 seam
+is unchanged in shape (a ranged overload with a whole-file default was
+added so per-segment recognition needs no signature breakage).
+
+- **Engine: Vosk** (`com.alphacephei:vosk-android:0.3.75`,
+  Apache-2.0; rejected: platform `SpeechRecognizer` — not offline,
+  takes no file; whisper.cpp — no AAR, no NDK in this env; big Vosk
+  models — GB-scale, server-grade). Model:
+  `vosk-model-small-en-us-0.15` (40 MB, Apache-2.0, WER ~10 on clean
+  speech, "lightweight wideband model for Android" per vendor).
+- **Audio path:** session m4a (AAC 44.1 kHz) → MediaExtractor/MediaCodec
+  decode → mono mix → linear resample to 16 kHz → per-segment PCM slice
+  → one fresh `Recognizer` per segment over a process-cached `Model`.
+  Decode streams chunk-by-chunk into a temp PCM file: a 3-minute lecture
+  as one heap buffer OOMed the 192 MB heap on CE_Test (verified), the
+  streaming fix holds heap flat.
+- **Packaging:** model zip in `src/main/assets`, unpacked once (zip-slip
+  guarded, top-level wrapper stripped, `.ready` marker) to app-private
+  `files/vosk/`; ABIs kept to arm64-v8a + x86_64 (`ndk.abiFilters`,
+  saves ~19 MB; 32-bit falls back honestly). APK 20,339,200 →
+  81,883,512 bytes (+61,544,312: ~41 MB model + ~20 MB .so).
+- **Languages:** bundled model is English US only; other tags refused
+  with reason. **Nepali is not supported by the bundled model** (no
+  such Vosk model exists); mixed-language reliability unclaimed.
+- **Resources:** explicit tap only; model loads lazily on first
+  transcribe; native Model cached process-wide, Recognizer per segment
+  then closed. Vendor figures ~300 MB runtime for small models;
+  CE_Test (3 GB) ran it fine.
+- **Honesty preserved:** empty engine output, missing/corrupt audio,
+  missing model, native-load failure, decoder failure, unsupported
+  language → FAILED with reasons. "Offline transcript" wording; no
+  accuracy claims.
+- **Tests (382 total, 23 new `OfflineTranscriberTest`):** seam/output
+  contracts, slice math, resampler continuity, model-layout guards
+  (wrapper strip, both graph layouts), failure honesty,
+  INTERNET-permission absence; native execution explicitly NOT claimed
+  under Robolectric.
+
+---
+
 ## Listener Mode (Phase 7)
 
 Recording + transcript-ready session foundation. Phase 10 adds the

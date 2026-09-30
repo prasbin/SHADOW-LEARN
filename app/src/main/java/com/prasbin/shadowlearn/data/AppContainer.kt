@@ -95,16 +95,20 @@ object AppContainer {
     private var transcriptionRepo: com.prasbin.shadowlearn.data.listener.ListenerTranscriptionRepository? = null
 
     /**
-     * Phase 10 transcription seam: pending listener segments → READY/FAILED
-     * via the installed [Transcriber]. Production default is the honest
-     * [UnavailableTranscriber]; a real on-device engine drops in here.
-     * UI talks to repositories only — never Room directly.
+     * Phase 10 transcription seam, Phase 14 real engine: pending listener
+     * segments → READY/FAILED via the installed [Transcriber]. Production
+     * is [OfflineTranscriber] (Vosk small-en-US, bundled model, lazy
+     * native load); every engine/model/decoder failure still resolves to
+     * the honest FAILED path. UI talks to repositories only — never Room
+     * directly.
      */
     fun transcription(context: Context): com.prasbin.shadowlearn.data.listener.ListenerTranscriptionRepository =
         transcriptionRepo ?: synchronized(this) {
             transcriptionRepo ?: com.prasbin.shadowlearn.data.listener.ListenerTranscriptionRepository(
                 dao = database(context).listenerDao(),
-                transcriber = com.prasbin.shadowlearn.data.listener.UnavailableTranscriber()
+                transcriber = com.prasbin.shadowlearn.data.listener.OfflineTranscriber(
+                    context.applicationContext
+                )
             ).also { transcriptionRepo = it }
         }
 

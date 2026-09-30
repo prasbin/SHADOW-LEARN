@@ -17,6 +17,13 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0-phase1"
+        // Phase 14: ship only the ABIs that matter — arm64-v8a (real
+        // devices incl. the Redmi Note 14 5G target) and x86_64 (CE_Test
+        // emulator). 32-bit devices keep every other feature; STT on them
+        // reports the honest unavailable-engine reason. Saves ~19 MB.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
     }
 
     buildTypes {
@@ -100,6 +107,13 @@ dependencies {
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
+
+    // Phase 14: Vosk offline speech recognition (Apache-2.0). Native
+    // libvosk.so ships for arm64-v8a + x86_64 (see abiFilters above);
+    // the 41 MB small-en-US model ships under src/main/assets and is
+    // unpacked to app-private storage on first transcription — never
+    // downloaded, never sent anywhere.
+    implementation("com.alphacephei:vosk-android:0.3.75")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("androidx.test:core:1.6.1")

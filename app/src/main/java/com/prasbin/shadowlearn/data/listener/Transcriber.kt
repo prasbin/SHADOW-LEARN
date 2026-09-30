@@ -35,6 +35,19 @@ interface Transcriber {
      * "es-ES"); null means the caller detected no explicit preference.
      */
     fun transcribe(audioFile: File, languageTag: String? = null): TranscriptionResult
+
+    /**
+     * Transcribes the [startMs, endMs) slice of [audioFile] (Phase 14
+     * per-segment recognition). `endMs < 0` means "to end of file".
+     * The default implementation ignores the range and transcribes the
+     * whole file, so existing fakes keep compiling and behaving.
+     */
+    fun transcribe(
+        audioFile: File,
+        startMs: Long,
+        endMs: Long,
+        languageTag: String? = null
+    ): TranscriptionResult = transcribe(audioFile, languageTag)
 }
 
 /**

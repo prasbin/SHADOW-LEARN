@@ -5,9 +5,9 @@ Personal offline-first university learning OS (native Android).
 - Package: `com.prasbin.shadowlearn`
 - UI: Jetpack Compose (Material 3, dark futuristic theme)
 - Data: Room (SQLite) + DataStore + Storage Access Framework
-- Status: **Phase 13 - Portable backup.** Semester export/import as a
-  versioned ZIP (academic files + history), offline, validated before
-  any write. Text, OOXML/.docx/
+- Status: **Phase 14 - Bundled on-device STT engine.** Vosk
+  small-en-US transcribes recorded sessions behind the unchanged seam
+  (verbatim READY or honest FAILED, never fabricated). Text, OOXML/.docx/
   .pptx, and PDF extraction with per-file, per-page chunks and an
   incremental FTS index (FTS5 auto-falls back to FTS4), fast honest
   academic search, a fully offline quiz engine over the current
@@ -356,6 +356,41 @@ Personal offline-first university learning OS (native Android).
     (One real bug found by CE testing and fixed: child history rows
     were re-inserted on re-import — now guarded by parent novelty.)
 
+## Features (Phase 14)
+
+- **Real offline STT: Vosk small-en-US, no new tables, no migration**
+  (Room stays v7). `vosk-android:0.3.75` (Apache-2.0) +
+  `vosk-model-small-en-us-0.15` (40 MB, Apache-2.0) behind the
+  unchanged `Transcriber` seam; no cloud, no network permission, audio
+  never leaves the device.
+  - Pipeline: session m4a (AAC 44.1 kHz) → MediaExtractor/MediaCodec
+    decode → mono mix → linear resample to 16 kHz → per-segment PCM
+    slice → Vosk `Recognizer` → verbatim text. Decode streams chunk by
+    chunk into a temp PCM file (heap stays flat — a 3-minute lecture
+    OOMed the 192 MB heap as one buffer; fixed and verified).
+  - Model ships in the APK (`assets/…zip`) and unpacks once to
+    app-private storage (zip-slip guarded); native `Model` cached
+    process-wide, one fresh `Recognizer` per segment. ABIs kept:
+    arm64-v8a + x86_64 (32-bit devices report honest unavailability).
+  - Honesty preserved: English only (other tags refused with reason);
+    empty engine output, missing/corrupt audio, missing model, and
+    native-load failure all resolve to FAILED with reasons. "Offline
+    transcript" wording in UI; no accuracy claims.
+  - **23 new Phase 14 tests** (`OfflineTranscriberTest`: seam/output
+    contracts, slice math, resampler continuity, model-layout guards,
+    failure honesty, INTERNET-permission absence; native execution
+    explicitly NOT claimed under Robolectric). Total: **382 green**.
+  - **Emulator CE_Test API 36 verified, REAL ENGINE EXECUTED**:
+    install over Phase 13 data (all rows survive); recorded a real
+    ~2-minute session with live mic amplitude; TRANSCRIBE unpacked the
+    model and loaded native Vosk (logcat `VoskAPI` lines) — the silent
+    mic correctly produced empty output → both segments FAILED
+    honestly, DB + UI agree; Cards deck intact (5 cards, 1 lecture);
+    force-stop + relaunch preserved; no app FATALs. Nepali is NOT
+    supported by the bundled model (no such Vosk model exists).
+  - APK: 20,339,200 → **81,883,512 bytes (+61,544,312)** — ~41 MB
+    model + ~20 MB native .so, stated plainly.
+
 ## Features (Phase 7)
 
 - **Listener Mode foundation, fully offline** (Room v6 tables
@@ -392,13 +427,14 @@ Requirements and exact commands: see [docs/SETUP.md](docs/SETUP.md).
 Architecture and database / ingest / extraction pipeline: see
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-Status-line: `.\gradlew.bat testDebugUnitTest assembleDebug` (**359 unit
+Status-line: `.\gradlew.bat testDebugUnitTest assembleDebug` (**382 unit
 tests**, including Robolectric Room migrations + end-to-end ingest,
 reconciliation, extraction, Search, the quiz engine over a real FTS4
 index, Listener Mode sessions/segments, Flashcards/SM-2-lite
 spaced review, the Phase 9 progression engine, Phase 10
 listener transcription, the Phase 11 lecture-card loop, the Phase 12
-derived-progress engine, and Phase 13 portable backup).
+derived-progress engine, Phase 13 portable backup, and the Phase 14
+Vosk transcription engine).
 
 ## Testing status
 
@@ -590,6 +626,22 @@ derived-progress engine, and Phase 13 portable backup).
   reconcile outcomes, history preservation, honest per-record
   failures, audio exclusion, corrupt/missing/version/hash validation
   with zero writes).
+- **Emulator verification performed - Phase 14 Vosk transcription,
+  REAL ENGINE EXECUTED** (`CE_Test`, API 36, current build over
+  Phase 13 data, no migration): recorded a real ~2-minute session
+  with live mic amplitude; TRANSCRIBE unpacked the 41 MB model to
+  app-private storage and loaded native Vosk (logcat `VoskAPI`
+  ivector/graph lines); decode + per-segment slicing ran with no OOM
+  (streaming PCM temp-file fix for the 192 MB heap — a 3-minute
+  lecture as one buffer crashed first); the silent mic correctly
+  produced empty output → both segments FAILED honestly, DB + UI
+  agree; Cards deck intact (5 cards, 1 lecture); force-stop +
+  relaunch preserved; no app FATALs; no INTERNET permission on the
+  installed package. Nepali NOT supported (no such Vosk model).
+  Unit suite for this pass: **382/382** (adds 23 Phase 14 tests:
+  seam/output contracts, slice math, resampler continuity, model
+  layout guards, failure honesty, INTERNET absence; native execution
+  explicitly NOT claimed under Robolectric).
 
 ## Current limitations
 
@@ -601,17 +653,18 @@ derived-progress engine, and Phase 13 portable backup).
   (Settings Data section): versioned ZIP with manifest, academic
   content reconciled on import, history restored with ID remapping,
   listener audio explicitly excluded.
-- Listen records + transcribes via an explicit per-session pass, but no
-  real on-device speech engine is bundled yet: without one, segments
-  report the honest unavailability reason instead of invented text.
-  READY transcripts that do exist become lecture cards in the Cards
-  tab with an honest "Lecture cards" count.
+- Listen records + transcribes via an explicit per-session pass using
+  the bundled Vosk small-en-US engine (English only; Nepali is not
+  supported by the bundled model). Segments that cannot be transcribed
+  report the honest reason instead of invented text. READY transcripts
+  become lecture cards in the Cards tab with an honest "Lecture cards"
+  count.
 - Search covers the current semester's indexed *chunks* only; unindexed
   file types (`.rtf`, OLE `.doc`, garbage files) are explained per file by
   the extraction metadata and never silently â€œmatch nothingâ€.
 
 ## Next
 
-Phase 14 - the ONE next step (see the Phase 13 hand-off prompt).
+Phase 15 - the ONE next step (see the Phase 14 hand-off prompt).
 
 

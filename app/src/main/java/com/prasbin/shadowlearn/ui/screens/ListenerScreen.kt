@@ -244,7 +244,7 @@ fun ListenerScreen(vm: ListenerViewModel = viewModel(factory = ListenerViewModel
                     Text(seg.transcript, style = MaterialTheme.typography.bodyMedium)
                     if (seg.transcriptStatus == ListenerSegment.STATUS_READY) {
                         Text(
-                            "Verbatim engine transcript — this text can feed flashcard review.",
+                            "Offline transcript (verbatim engine output) — this text can feed flashcard review.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

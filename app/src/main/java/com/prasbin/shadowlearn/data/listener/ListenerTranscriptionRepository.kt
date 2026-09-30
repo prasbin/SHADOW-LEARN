@@ -66,7 +66,11 @@ class ListenerTranscriptionRepository(
             )
             return false
         }
-        val result = runCatching { transcriber.transcribe(audioFile, null) }
+        val result = runCatching {
+            val endMs =
+                if (segment.durationMs > 0) segment.startedAtMs + segment.durationMs else -1L
+            transcriber.transcribe(audioFile, segment.startedAtMs, endMs, null)
+        }
             .getOrElse { e ->
                 TranscriptionResult.Failed("Transcription failed: ${e.message ?: "unknown error"}.")
             }
