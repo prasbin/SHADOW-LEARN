@@ -114,6 +114,11 @@ no secrets in the repo, no keystores/passwords committed.
 - SYSTEM HOME ships: state, objectives, recommendation, weak areas,
   activity, focus — all aggregated from real rows (SystemHomeRepository);
   387/387 unit tests; verified on CE_Test via view hierarchy.
+- Hierarchy navigation ships: Home Academic Status → Years → Semesters →
+  Modules → Weeks → Files, all from existing Room reads (no migration);
+  honest empty states, CURRENT scope markers, file rows show provenance
+  only (no viewer yet); 395/395 unit tests; full journey verified on
+  CE_Test via view hierarchy.
 - Working: ZIP ingest + reconcile, extraction (PDF/DOCX/PPTX/TXT),
   FTS4/FTS5 search, deterministic quiz, XP/levels/streak, SM-2-lite
   flashcards + resume, Listener recording + segments, offline Vosk

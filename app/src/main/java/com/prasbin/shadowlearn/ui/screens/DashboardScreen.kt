@@ -31,7 +31,7 @@ private fun HomeTarget.toRoute(): String = when (this) {
     HomeTarget.CARDS -> Routes.FLASHCARDS
     HomeTarget.QUIZ -> Routes.QUIZ
     HomeTarget.LISTEN -> Routes.LISTENER
-    HomeTarget.ACADEMIC -> Routes.ACADEMIC
+    HomeTarget.ACADEMIC -> Routes.hierarchyRoot()
     HomeTarget.SETTINGS -> Routes.SETTINGS
 }
 
@@ -69,7 +69,10 @@ fun DashboardScreen(onNavigate: (String) -> Unit = {}) {
             )
         }
         item {
-            SectionCard("Academic Status") {
+            SectionCard(
+                "Academic Status",
+                modifier = Modifier.clickable { go(HomeTarget.ACADEMIC) }
+            ) {
                 Text(
                     "${s.currentYear} · ${s.currentSemester}",
                     style = MaterialTheme.typography.titleMedium

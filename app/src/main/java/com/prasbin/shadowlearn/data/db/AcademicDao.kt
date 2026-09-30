@@ -52,6 +52,16 @@ interface AcademicDao {
     @Query("SELECT * FROM semesters WHERE id = :id LIMIT 1")
     suspend fun semester(id: Long): Semester?
 
+    /** Direct lookups for hierarchy-browser breadcrumb titles (read-only). */
+    @Query("SELECT * FROM modules WHERE id = :id LIMIT 1")
+    suspend fun module(id: Long): Module?
+
+    @Query("SELECT * FROM weeks WHERE id = :id LIMIT 1")
+    suspend fun week(id: Long): Week?
+
+    @Query("SELECT * FROM academic_files WHERE id = :id LIMIT 1")
+    suspend fun file(id: Long): AcademicFile?
+
     @Query("SELECT * FROM semesters WHERE yearId = :yearId ORDER BY sortOrder, name")
     fun observeSemesters(yearId: Long): Flow<List<Semester>>
 

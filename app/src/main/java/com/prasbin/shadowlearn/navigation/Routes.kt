@@ -20,6 +20,17 @@ object Routes {
     const val FLASHCARDS = "flashcards"
     const val PROGRESS = "progress"
     const val SETTINGS = "settings"
+    const val HIERARCHY = "hierarchy"
+    const val HIERARCHY_YEAR = "hierarchy/year"
+    const val HIERARCHY_SEMESTER = "hierarchy/semester"
+    const val HIERARCHY_MODULE = "hierarchy/module"
+    const val HIERARCHY_WEEK = "hierarchy/week"
+
+    fun hierarchyRoot(): String = HIERARCHY
+    fun hierarchyYear(yearId: Long): String = "$HIERARCHY_YEAR/$yearId"
+    fun hierarchySemester(semesterId: Long): String = "$HIERARCHY_SEMESTER/$semesterId"
+    fun hierarchyModule(moduleId: Long): String = "$HIERARCHY_MODULE/$moduleId"
+    fun hierarchyWeek(weekId: Long): String = "$HIERARCHY_WEEK/$weekId"
 }
 
 data class Destination(val route: String, val label: String, val icon: ImageVector)
