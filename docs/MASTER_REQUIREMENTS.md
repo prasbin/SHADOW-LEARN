@@ -111,6 +111,9 @@ no secrets in the repo, no keystores/passwords committed.
 
 - Phase 14 HEAD `fd0818a`; Room v7; 382/382 unit tests; ~78 MB APK
   (41 MB Vosk model + ~20 MB native .so, arm64-v8a + x86_64).
+- SYSTEM HOME ships: state, objectives, recommendation, weak areas,
+  activity, focus — all aggregated from real rows (SystemHomeRepository);
+  387/387 unit tests; verified on CE_Test via view hierarchy.
 - Working: ZIP ingest + reconcile, extraction (PDF/DOCX/PPTX/TXT),
   FTS4/FTS5 search, deterministic quiz, XP/levels/streak, SM-2-lite
   flashcards + resume, Listener recording + segments, offline Vosk
@@ -120,10 +123,9 @@ no secrets in the repo, no keystores/passwords committed.
 ## 14. Known gaps
 
 - Progress tab is a ComingSoon placeholder (contradicts shipped XP).
-- Home shows stats but no objectives, recommendations, weak areas,
-  or recent activity.
-- 8 flat tabs with no cross-navigation; features feel parallel.
-- No weakness detection or source-grounded intelligence yet.
+- 8 flat tabs; Home rows now cross-navigate into them.
+- Concept-level weakness detection not yet possible (no topic
+  taxonomy); Home shows file-level signals only, labeled as such.
 - Semester scope UX is fragile (autocomplete junk observed on device).
 - REAL DEVICE TEST: only partial (Phase 15 FAIL: USB instability).
 - Release signing/packaging unvalidated; no Play Store readiness claim.

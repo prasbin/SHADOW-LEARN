@@ -152,6 +152,21 @@ object AppContainer {
         }
 
     @Volatile
+    private var homeRepo: com.prasbin.shadowlearn.data.home.SystemHomeRepository? = null
+
+    /** System Home aggregation: objectives, weak areas, activity, focus, recommendation. */
+    fun systemHome(context: Context): com.prasbin.shadowlearn.data.home.SystemHomeRepository =
+        homeRepo ?: synchronized(this) {
+            homeRepo ?: com.prasbin.shadowlearn.data.home.SystemHomeRepository(
+                academicDao = database(context).academicDao(),
+                extractionDao = database(context).extractionDao(),
+                quizDao = database(context).quizDao(),
+                flashcardDao = database(context).flashcardDao(),
+                listenerDao = database(context).listenerDao()
+            ).also { homeRepo = it }
+        }
+
+    @Volatile
     private var backupRepo: com.prasbin.shadowlearn.data.backup.BackupRepository? = null
 
     /** Phase 13 portable backup: semester export + validated restore. */

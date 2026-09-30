@@ -57,7 +57,11 @@ fun AppNav() {
             startDestination = Routes.DASHBOARD,
             modifier = Modifier.padding(inner)
         ) {
-            composable(Routes.DASHBOARD) { DashboardScreen() }
+            composable(Routes.DASHBOARD) {
+                DashboardScreen(onNavigate = { route ->
+                    navController.navigate(route) { launchSingleTop = true }
+                })
+            }
             composable(Routes.ACADEMIC) { AcademicScreen() }
             composable(Routes.SEARCH) { SearchScreen() }
             composable(Routes.QUIZ) { QuizScreen() }
