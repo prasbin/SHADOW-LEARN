@@ -131,6 +131,13 @@ no secrets in the repo, no keystores/passwords committed.
   dominant Start/Resume, honest zero-due with real next actions, semantic
   48dp ratings, demoted suspend, shared components; engine untouched;
   400/400 unit tests; due/review/zero-due journey verified on Redmi.
+- Cross-links wired (Search→Hierarchy week, Listener READY→Cards via
+  existing buildDeck, Quiz mistakes→Cards, Intake Done→Material/Search);
+  Cards refreshes on revisit (IDLE only); 401/401 unit tests; Search,
+  Quiz, and Intake journeys verified on CE_Test via hierarchy dumps
+  (real import + real quiz with 3 mistakes → 8 cards); Listener SEND
+  honest-absence verified (emulator speech unavailable); phone
+  disconnected mid-session, Redmi re-validation pending.
 - Working: ZIP ingest + reconcile, extraction (PDF/DOCX/PPTX/TXT),
   FTS4/FTS5 search, deterministic quiz, XP/levels/streak, SM-2-lite
   flashcards + resume, Listener recording + segments, offline Vosk

@@ -193,6 +193,11 @@ fun ListenerScreen(
                 item { TranscriptionCard(s, onTranscribe = { vm.transcribeCurrentSession() }) }
                 if (s.segments.any { it.transcriptStatus == ListenerSegment.STATUS_READY }) {
                     item {
+                        Button(
+                            onClick = { vm.sendReadyToCards(); onNavigate(Routes.FLASHCARDS) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("SEND READY TO CARDS ›") }
+                        Spacer(Modifier.height(4.dp))
                         Text(
                             "READY transcripts feed flashcard review in the Cards tab.",
                             style = MaterialTheme.typography.bodySmall,

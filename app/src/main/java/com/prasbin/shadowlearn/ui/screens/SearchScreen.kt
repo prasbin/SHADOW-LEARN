@@ -32,6 +32,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -150,7 +151,18 @@ fun SearchScreen(onNavigate: (String) -> Unit = {}) {
         }
     }
 
-    selected?.let { DetailDialog(it, onDismiss = { selected = null }) }
+    val sel = selected
+    val hierarchyTarget by produceState<String?>(initialValue = null, sel?.academicFileId) {
+        value = sel?.let { vm.hierarchyTargetFor(it.academicFileId) }
+    }
+    sel?.let {
+        DetailDialog(
+            result = it,
+            hierarchyTarget = hierarchyTarget,
+            onOpenHierarchy = { target -> selected = null; onNavigate(target) },
+            onDismiss = { selected = null }
+        )
+    }
 }
 
 @Composable
@@ -309,7 +321,12 @@ private fun EmptyState(message: String) {
 }
 
 @Composable
-private fun DetailDialog(result: SearchResult, onDismiss: () -> Unit) {
+private fun DetailDialog(
+    result: SearchResult,
+    hierarchyTarget: String?,
+    onOpenHierarchy: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(result.fileName) },
@@ -335,6 +352,13 @@ private fun DetailDialog(result: SearchResult, onDismiss: () -> Unit) {
         },
         confirmButton = {
             TextButton(onClick = onDismiss) { Text("Close") }
+        },
+        dismissButton = {
+            if (hierarchyTarget != null) {
+                TextButton(onClick = { onOpenHierarchy(hierarchyTarget) }) {
+                    Text("OPEN IN HIERARCHY ›")
+                }
+            }
         }
     )
 }

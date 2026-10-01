@@ -22,6 +22,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +55,18 @@ fun FlashcardsScreen(onNavigate: (String) -> Unit = {}) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val vm: FlashcardViewModel = viewModel(factory = FlashcardViewModel.factory(context))
     val s by vm.state.collectAsStateWithLifecycle()
+
+    // Cross-link freshness: quiz mistakes and READY transcripts merged into
+    // the deck elsewhere appear on return. Guarded inside refreshDeck to
+    // IDLE/NO_DECKS, so REVIEW and RESULTS are never reset by a revisit.
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle, vm) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) vm.refreshDeck()
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),

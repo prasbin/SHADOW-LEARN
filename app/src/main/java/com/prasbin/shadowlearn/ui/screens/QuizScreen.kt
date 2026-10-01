@@ -22,6 +22,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -113,7 +114,7 @@ fun QuizScreen(onNavigate: (String) -> Unit = {}) {
             QuizUiKind.QUESTION -> {
                 item { QuestionView(s.quiz!!, s.current, s.feedback, vm::answer, vm::next) }
             }
-            QuizUiKind.RESULTS -> item { ResultsView(s.results!!, vm::newQuiz) }
+            QuizUiKind.RESULTS -> item { ResultsView(s.results!!, vm::newQuiz, { onNavigate(Routes.FLASHCARDS) }) }
         }
     }
 }
@@ -421,7 +422,7 @@ private fun TypeChip(type: QuestionType) {
 }
 
 @Composable
-private fun ResultsView(results: QuizResults, onNewQuiz: () -> Unit) {
+private fun ResultsView(results: QuizResults, onNewQuiz: () -> Unit, onPracticeMistakes: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -490,6 +491,21 @@ private fun ResultsView(results: QuizResults, onNewQuiz: () -> Unit) {
         }
         Button(onClick = onNewQuiz, modifier = Modifier.fillMaxWidth()) {
             Text("NEW QUIZ")
+        }
+        // Cross-link #3: mistakes already persist as rows; opening Cards
+        // rebuilds the deck through the existing mistake path (no new logic).
+        val mistakes = results.total - results.correct
+        Spacer(Modifier.height(4.dp))
+        if (mistakes > 0) {
+            OutlinedButton(onClick = onPracticeMistakes, modifier = Modifier.fillMaxWidth()) {
+                Text("PRACTICE MISTAKES IN CARDS ›")
+            }
+        } else {
+            Text(
+                "NO MISTAKES TO PRACTICE",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

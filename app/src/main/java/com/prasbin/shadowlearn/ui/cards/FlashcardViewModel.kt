@@ -156,8 +156,20 @@ class FlashcardViewModel(context: Context) : ViewModel() {
         }
     }
 
-    /** Starts a review session for the current deck. */
-    fun startReview() {
+    /**
+     * Rebuilds the deck for the current semester. Used when returning to
+     * Cards after quiz mistakes or READY transcripts produced new cards
+     * elsewhere. No-op unless IDLE or NO_DECKS, so an in-progress review
+     * or a fresh result is never clobbered by a tab revisit.
+     */
+    fun refreshDeck() {
+        val st = _state.value
+        val semId = st.semesterId ?: return
+        if (st.kind != FlashcardUiKind.IDLE && st.kind != FlashcardUiKind.NO_DECKS) return
+        loadDeck(semId)
+    }
+
+    /** Starts a review session for the current deck. */    fun startReview() {
         val state = _state.value
         if (state.deckId == null || state.queue.isEmpty()) return
         viewModelScope.launch {

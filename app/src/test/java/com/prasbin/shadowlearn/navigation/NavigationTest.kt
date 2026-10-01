@@ -41,4 +41,10 @@ class NavigationTest {
         assertNull(tabForRoute(null))
         assertNull(tabForRoute("unknown"))
     }
+
+    @Test
+    fun hierarchyWeekRouteResolves() {
+        assertEquals("hierarchy/week/7", hierarchyWeekRoute(7))
+        assertNull(hierarchyWeekRoute(null))
+    }
 }

@@ -104,6 +104,14 @@ class SearchViewModel(context: Context) : ViewModel() {
         query.value = text
     }
 
+    /**
+     * Cross-link #1: closest hierarchy destination for a search hit's file
+     * (FILE → WEEK level). Null when the file row is gone — the dialog
+     * then shows no hierarchy action instead of a dead one.
+     */
+    suspend fun hierarchyTargetFor(fileId: Long): String? =
+        com.prasbin.shadowlearn.navigation.hierarchyWeekRoute(dao.file(fileId)?.weekId)
+
     companion object {
         const val DEBOUNCE_MS = 250L
         const val SEARCHING_MIN_MS = 200L

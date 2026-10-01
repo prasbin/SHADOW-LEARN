@@ -263,8 +263,20 @@ class ListenerViewModel(context: Context) : ViewModel() {
         }
     }
 
-    private fun transcriptionSummary(outcome: SessionTranscription): String = when {
-        outcome.attempted == 0 -> "Nothing to transcribe — no pending segments."
+    /**
+     * Cross-link #2: runs the existing lecture-card generation path
+     * ([FlashcardRepository.buildDeck] merges READY segments via contentKey —
+     * same call Cards makes on load) so the resulting cards are waiting when
+     * the user continues into Cards. No new generator, no new persistence.
+     */
+    fun sendReadyToCards() {
+        val semId = _state.value.semesterId ?: return
+        viewModelScope.launch {
+            runCatching { AppContainer.flashcard(app).buildDeck(semId) }
+        }
+    }
+
+    private fun transcriptionSummary(outcome: SessionTranscription): String = when {        outcome.attempted == 0 -> "Nothing to transcribe — no pending segments."
         outcome.ready > 0 && outcome.failed == 0 ->
             if (outcome.ready == 1) "Transcribed 1 segment." else "Transcribed ${outcome.ready} segments."
         outcome.ready > 0 -> "Transcribed ${outcome.ready}; ${outcome.failed} unavailable."

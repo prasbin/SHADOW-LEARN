@@ -6,8 +6,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
@@ -128,7 +130,7 @@ fun AcademicScreen(onNavigate: (String) -> Unit = {}) {
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("OPEN SETTINGS") }
                 }
-                ImportStatus(s.ingest)
+                ImportStatus(s.ingest, s.currentSemesterId, onNavigate)
                 ExtractionStatus(s.extraction)
             }
         }
@@ -191,7 +193,11 @@ private fun YearSemesterSelectors(
 }
 
 @Composable
-private fun ImportStatus(state: IngestState) {
+private fun ImportStatus(
+    state: IngestState,
+    semesterId: Long?,
+    onNavigate: (String) -> Unit
+) {
     when (state) {
         is IngestState.Idle -> Unit
         is IngestState.Importing -> {
@@ -210,6 +216,22 @@ private fun ImportStatus(state: IngestState) {
             StatRow("Failed", r.failed.toString())
             if (r.skipped > 0) StatRow("Skipped", r.skipped.toString())
             ErrorList(r.errors)
+            Spacer(Modifier.height(4.dp))
+            // Cross-link #4: hand off into the system at the current scope.
+            Button(
+                onClick = {
+                    onNavigate(
+                        if (semesterId != null) Routes.hierarchySemester(semesterId)
+                        else Routes.hierarchyRoot()
+                    )
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("BROWSE MATERIAL ›") }
+            Spacer(Modifier.height(4.dp))
+            OutlinedButton(
+                onClick = { onNavigate(Routes.SEARCH) },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("SEARCH INDEX ›") }
         }
         is IngestState.Failed -> {
             Text("Import failed: ${state.reason}", color = MaterialTheme.colorScheme.error)

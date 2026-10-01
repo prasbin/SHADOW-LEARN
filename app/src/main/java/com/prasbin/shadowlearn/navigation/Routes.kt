@@ -30,6 +30,10 @@ object Routes {
     fun hierarchyWeek(weekId: Long): String = "$HIERARCHY_WEEK/$weekId"
 }
 
+/** Closest hierarchy destination for a file's week; null when unresolvable. */
+fun hierarchyWeekRoute(weekId: Long?): String? =
+    weekId?.let { Routes.hierarchyWeek(it) }
+
 data class Destination(val route: String, val label: String, val icon: ImageVector)
 
 /**
