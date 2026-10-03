@@ -142,6 +142,11 @@ no secrets in the repo, no keystores/passwords committed.
   labeled IMPORT/EXTRACTION states, unified Configuration card, honest
   disabled Notifications toggle, full-row switches, spaced Data actions;
   engine untouched; 401/401 unit tests; verified on CE_Test via dumps.
+- Global polish on Quiz/Listener/Search: eyebrow headers, option letters
+  A–D with 48dp targets, 52dp primary actions, stable recording-control
+  styles, contentPadding nav fix, exact-case search keyboard, relevance %
+  readout; engine untouched; 401/401 unit tests; quiz + listener journeys
+  verified on CE_Test via dumps.
 - Working: ZIP ingest + reconcile, extraction (PDF/DOCX/PPTX/TXT),
   FTS4/FTS5 search, deterministic quiz, XP/levels/streak, SM-2-lite
   flashcards + resume, Listener recording + segments, offline Vosk

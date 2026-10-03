@@ -8,6 +8,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -83,11 +84,17 @@ fun ListenerScreen(
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Text("LISTENER MODE", style = MaterialTheme.typography.headlineMedium)
+            Text(
+                "LISTEN",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text("Listener Mode", style = MaterialTheme.typography.headlineMedium)
             Text(
                 "Record lectures into transcript-ready sessions",
                 style = MaterialTheme.typography.bodyMedium,
@@ -118,7 +125,7 @@ fun ListenerScreen(
             ListenerUiKind.IDLE -> {
                 item { AboutCard(sessionCount = s.sessionCount) }
                 item {
-                    Button(onClick = { vm.onStartPressed() }, modifier = Modifier.fillMaxWidth()) {
+                    Button(onClick = { vm.onStartPressed() }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
                         Text("START RECORDING")
                     }
                 }
@@ -159,10 +166,10 @@ fun ListenerScreen(
                 item { RecordingCard(s, paused = false) }
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                        OutlinedButton(onClick = { vm.pause() }, modifier = Modifier.weight(1f)) {
+                        OutlinedButton(onClick = { vm.pause() }, modifier = Modifier.weight(1f).height(48.dp)) {
                             Text("PAUSE")
                         }
-                        Button(onClick = { vm.stop() }, modifier = Modifier.weight(1f)) {
+                        Button(onClick = { vm.stop() }, modifier = Modifier.weight(1f).height(48.dp)) {
                             Text("STOP")
                         }
                     }
@@ -172,10 +179,10 @@ fun ListenerScreen(
                 item { RecordingCard(s, paused = true) }
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                        Button(onClick = { vm.resume() }, modifier = Modifier.weight(1f)) {
+                        OutlinedButton(onClick = { vm.resume() }, modifier = Modifier.weight(1f).height(48.dp)) {
                             Text("RESUME")
                         }
-                        OutlinedButton(onClick = { vm.stop() }, modifier = Modifier.weight(1f)) {
+                        Button(onClick = { vm.stop() }, modifier = Modifier.weight(1f).height(48.dp)) {
                             Text("FINISH")
                         }
                     }
@@ -195,7 +202,7 @@ fun ListenerScreen(
                     item {
                         Button(
                             onClick = { vm.sendReadyToCards(); onNavigate(Routes.FLASHCARDS) },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth().height(48.dp)
                         ) { Text("SEND READY TO CARDS ›") }
                         Spacer(Modifier.height(4.dp))
                         Text(
@@ -209,7 +216,7 @@ fun ListenerScreen(
                     SegmentRow(i, seg) { vm.selectSegment(seg) }
                 }
                 item {
-                    Button(onClick = { vm.newRecording() }, modifier = Modifier.fillMaxWidth()) {
+                    Button(onClick = { vm.newRecording() }, modifier = Modifier.fillMaxWidth().height(48.dp)) {
                         Text("NEW RECORDING")
                     }
                 }
@@ -238,7 +245,7 @@ fun ListenerScreen(
                     }
                 }
                 item {
-                    Button(onClick = { vm.newRecording() }, modifier = Modifier.fillMaxWidth()) {
+                    Button(onClick = { vm.newRecording() }, modifier = Modifier.fillMaxWidth().height(48.dp)) {
                         Text("BACK TO LISTENER")
                     }
                 }
@@ -418,7 +425,7 @@ private fun TranscriptionCard(s: ListenerUiState, onTranscribe: () -> Unit) {
         } else {
             Button(
                 onClick = onTranscribe,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().height(52.dp),
                 enabled = pending > 0
             ) {
                 Text(if (pending > 0) "TRANSCRIBE ($pending PENDING)" else "TRANSCRIBE")

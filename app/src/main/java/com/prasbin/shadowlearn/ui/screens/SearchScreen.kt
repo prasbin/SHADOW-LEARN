@@ -72,6 +72,11 @@ fun SearchScreen(onNavigate: (String) -> Unit = {}) {
     ) {
         item {
             Text(
+                "SEARCH",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
                 "ACADEMIC SEARCH",
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.primary
@@ -99,7 +104,7 @@ fun SearchScreen(onNavigate: (String) -> Unit = {}) {
                 },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Words,
+                    capitalization = KeyboardCapitalization.None,
                     imeAction = ImeAction.Search
                 )
             )
@@ -303,7 +308,13 @@ private fun RelevanceBar(score: Double, maxScore: Double) {
         Spacer(Modifier.width(8.dp))
         LinearProgressIndicator(
             progress = { fraction },
-            modifier = Modifier.width(120.dp),
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.tertiary
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            "${(fraction * 100).toInt()}%",
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.tertiary
         )
     }

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -66,6 +67,11 @@ fun QuizScreen(onNavigate: (String) -> Unit = {}) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
+            Text(
+                "STUDY",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
             Text(
                 "DAILY QUIZ",
                 style = MaterialTheme.typography.headlineMedium,
@@ -205,11 +211,12 @@ private fun IdleQuiz(
                 FilterChip(
                     selected = n == selectedLength,
                     onClick = { onLength(n) },
-                    label = { Text("$n") }
+                    label = { Text("$n") },
+                    modifier = Modifier.height(48.dp)
                 )
             }
         }
-        Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = onStart, modifier = Modifier.fillMaxWidth().height(52.dp)) {
             Text("START QUIZ")
         }
     }
@@ -271,7 +278,7 @@ private fun QuestionView(
         if (feedback != null) {
             FeedbackCard(feedback)
             CitationCard(question.source)
-            Button(onClick = onNext, modifier = Modifier.fillMaxWidth()) {
+            Button(onClick = onNext, modifier = Modifier.fillMaxWidth().height(52.dp)) {
                 Text(if (current + 1 < quiz.total) "NEXT QUESTION" else "FINISH")
             }
         }
@@ -286,8 +293,9 @@ private fun OptionsList(
     onAnswer: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        question.options.forEach { option ->
+        question.options.forEachIndexed { index, option ->
             OptionButton(
+                letter = ('A' + index).toString(),
                 option = option,
                 display = if (question.type == QuestionType.TRUE_FALSE) option.uppercase(Locale.ROOT) else option,
                 feedback = feedback,
@@ -300,6 +308,7 @@ private fun OptionsList(
 
 @Composable
 private fun OptionButton(
+    letter: String,
     option: String,
     display: String,
     feedback: QuizFeedback?,
@@ -321,17 +330,25 @@ private fun OptionButton(
     }
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp),
         colors = CardDefaults.cardColors(containerColor = container),
         border = BorderStroke(1.dp, border),
         enabled = feedback == null
     ) {
-        Text(
-            display,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                letter,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 14.dp)
+            )
+            Text(
+                display,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp)
+            )
+        }
     }
 }
 
@@ -489,7 +506,7 @@ private fun ResultsView(results: QuizResults, onNewQuiz: () -> Unit, onPracticeM
                 }
             }
         }
-        Button(onClick = onNewQuiz, modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = onNewQuiz, modifier = Modifier.fillMaxWidth().height(52.dp)) {
             Text("NEW QUIZ")
         }
         // Cross-link #3: mistakes already persist as rows; opening Cards
@@ -497,7 +514,7 @@ private fun ResultsView(results: QuizResults, onNewQuiz: () -> Unit, onPracticeM
         val mistakes = results.total - results.correct
         Spacer(Modifier.height(4.dp))
         if (mistakes > 0) {
-            OutlinedButton(onClick = onPracticeMistakes, modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(onClick = onPracticeMistakes, modifier = Modifier.fillMaxWidth().height(48.dp)) {
                 Text("PRACTICE MISTAKES IN CARDS ›")
             }
         } else {
