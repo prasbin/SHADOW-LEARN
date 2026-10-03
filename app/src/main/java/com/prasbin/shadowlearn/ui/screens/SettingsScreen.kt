@@ -2,10 +2,14 @@ package com.prasbin.shadowlearn.ui.screens
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
@@ -15,6 +19,7 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -24,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -34,9 +40,15 @@ import com.prasbin.shadowlearn.data.backup.BackupState
 import com.prasbin.shadowlearn.ui.backup.BackupViewModel
 import com.prasbin.shadowlearn.ui.components.SectionCard
 import com.prasbin.shadowlearn.ui.components.GroupSwitcher
+import com.prasbin.shadowlearn.ui.components.StatRow
 import com.prasbin.shadowlearn.navigation.Routes
 import com.prasbin.shadowlearn.ui.settings.SettingsViewModel
 
+/**
+ * SYSTEM settings — configuration, preferences, and data for the academic
+ * system. Same HUD language as the rest of SHADOW LEARN; every control
+ * wires to the existing Settings/Backup view models (no logic changed).
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(onNavigate: (String) -> Unit = {}) {
@@ -53,7 +65,18 @@ fun SettingsScreen(onNavigate: (String) -> Unit = {}) {
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item { Text("Settings", style = MaterialTheme.typography.headlineMedium) }
+        item {
+            Text(
+                "SYSTEM SETTINGS",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                "CONFIGURATION · PREFERENCES · DATA",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
         item {
             GroupSwitcher(
@@ -64,7 +87,13 @@ fun SettingsScreen(onNavigate: (String) -> Unit = {}) {
         }
 
         item {
-            SectionCard("Academic Year") {
+            SectionCard("Configuration") {
+                Text(
+                    "ACADEMIC YEAR",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.height(4.dp))
                 ExposedDropdownMenuBox(expanded = yearExpanded, onExpandedChange = { yearExpanded = it }) {
                     TextField(
                         value = s.years.firstOrNull { it.id == s.currentYearId }?.name ?: "Not configured",
@@ -89,13 +118,16 @@ fun SettingsScreen(onNavigate: (String) -> Unit = {}) {
                 )
                 Button(
                     onClick = { vm.addYear(newYear, s.years.size + 1); newYear = "" },
-                    enabled = newYear.isNotBlank()
-                ) { Text("Add year") }
-            }
-        }
-
-        item {
-            SectionCard("Semester") {
+                    enabled = newYear.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                ) { Text("ADD YEAR") }
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "SEMESTER",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.height(4.dp))
                 val semesters by vm.semestersOf(s.currentYearId ?: -1L)
                     .collectAsStateWithLifecycle(initialValue = emptyList())
                 ExposedDropdownMenuBox(expanded = semesterExpanded, onExpandedChange = { semesterExpanded = it }) {
@@ -125,17 +157,25 @@ fun SettingsScreen(onNavigate: (String) -> Unit = {}) {
                         val y = s.currentYearId ?: return@Button
                         vm.addSemester(y, newSemester, semesters.size + 1); newSemester = ""
                     },
-                    enabled = newSemester.isNotBlank() && s.currentYearId != null
-                ) { Text("Add semester") }
+                    enabled = newSemester.isNotBlank() && s.currentYearId != null,
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                ) { Text("ADD SEMESTER") }
                 if (s.currentYearId == null) Text("Select or add a year first.")
             }
         }
 
         item {
             SectionCard("Preferences") {
-                SettingToggle("Notifications", "Reminder scheduling arrives in a later phase.",
-                    s.notificationsEnabled, vm::setNotifications)
-                SettingToggle("Dark mode", "Futuristic dark interface.", s.darkMode, vm::setDarkMode)
+                SettingToggle(
+                    "Dark mode",
+                    "Futuristic dark interface.",
+                    s.darkMode, vm::setDarkMode, enabled = true
+                )
+                SettingToggle(
+                    "Notifications",
+                    "Reminder scheduling arrives in a later phase — no reminders are scheduled.",
+                    s.notificationsEnabled, vm::setNotifications, enabled = false
+                )
             }
         }
 
@@ -146,8 +186,9 @@ fun SettingsScreen(onNavigate: (String) -> Unit = {}) {
         item {
             SectionCard("About") {
                 Text("SHADOW LEARN — personal offline-first learning system.")
-                Text("Version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
-                Text("Package ${BuildConfig.APPLICATION_ID}")
+                Spacer(Modifier.height(4.dp))
+                StatRow("Version", "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+                StatRow("Package", BuildConfig.APPLICATION_ID)
             }
         }
     }
@@ -181,15 +222,19 @@ private fun BackupDataSection() {
                 "device and is never included.",
             style = MaterialTheme.typography.bodyMedium
         )
+        Spacer(Modifier.height(8.dp))
         Button(
             onClick = { exportLauncher.launch("shadowlearn-backup.zip") },
             enabled = s.currentSemesterId != null &&
-                backup !is BackupState.Working
-        ) { Text("Export Data") }
-        Button(
+                backup !is BackupState.Working,
+            modifier = Modifier.fillMaxWidth().height(48.dp)
+        ) { Text("EXPORT DATA") }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(
             onClick = { importLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed")) },
-            enabled = backup !is BackupState.Working
-        ) { Text("Import Data") }
+            enabled = backup !is BackupState.Working,
+            modifier = Modifier.fillMaxWidth().height(48.dp)
+        ) { Text("IMPORT DATA") }
         when (backup) {
             is BackupState.Working -> Text(
                 "${backup.operation}: ${backup.currentEntry} (${backup.processed}/${backup.total})",
@@ -228,18 +273,38 @@ private fun BackupDataSection() {
             BackupState.Idle -> {}
         }
         if (backup !is BackupState.Idle) {
-            Button(onClick = { vm.reset() }) { Text("Clear") }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { vm.reset() },
+                modifier = Modifier.fillMaxWidth().height(48.dp)
+            ) { Text("CLEAR") }
         }
     }
 }
 
+/**
+ * Full-row toggle: the whole row is the touch target (Switch itself takes
+ * no separate handler). Disabled toggles are honest about later-phase
+ * features instead of pretending to work.
+ */
 @Composable
 private fun SettingToggle(
-    title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit
+    title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit, enabled: Boolean
 ) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Text(title, style = MaterialTheme.typography.titleMedium)
-        Text(subtitle, style = MaterialTheme.typography.bodyMedium)
-        Switch(checked = checked, onCheckedChange = onChange)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).then(
+            if (enabled) Modifier.clickable { onChange(!checked) } else Modifier
+        ),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(checked = checked, onCheckedChange = null, enabled = enabled)
     }
 }

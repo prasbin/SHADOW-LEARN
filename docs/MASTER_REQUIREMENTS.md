@@ -138,6 +138,10 @@ no secrets in the repo, no keystores/passwords committed.
   (real import + real quiz with 3 mistakes → 8 cards); Listener SEND
   honest-absence verified (emulator speech unavailable); phone
   disconnected mid-session, Redmi re-validation pending.
+- Intake + Settings aligned to SYSTEM HUD: scope strip, dominant IMPORT,
+  labeled IMPORT/EXTRACTION states, unified Configuration card, honest
+  disabled Notifications toggle, full-row switches, spaced Data actions;
+  engine untouched; 401/401 unit tests; verified on CE_Test via dumps.
 - Working: ZIP ingest + reconcile, extraction (PDF/DOCX/PPTX/TXT),
   FTS4/FTS5 search, deterministic quiz, XP/levels/streak, SM-2-lite
   flashcards + resume, Listener recording + segments, offline Vosk

@@ -37,6 +37,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.prasbin.shadowlearn.data.ingest.ExtractionState
 import com.prasbin.shadowlearn.data.ingest.IngestState
 import com.prasbin.shadowlearn.ui.components.SectionCard
+import com.prasbin.shadowlearn.ui.components.ScopeStrip
 import com.prasbin.shadowlearn.ui.components.StatRow
 import com.prasbin.shadowlearn.ui.ingest.IngestViewModel
 import com.prasbin.shadowlearn.navigation.Routes
@@ -82,7 +83,37 @@ fun AcademicScreen(onNavigate: (String) -> Unit = {}) {
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item { Text("Academic Database", style = MaterialTheme.typography.headlineMedium) }
+        item {
+            Text(
+                "ACADEMIC INTAKE",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text("Material", style = MaterialTheme.typography.headlineMedium)
+            Text(
+                "IMPORT AND INDEX YOUR VERIFIED ACADEMIC MATERIAL",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        item {
+            val yearName = s.years.firstOrNull { it.id == s.currentYearId }?.name
+            val semesterName = semesters.firstOrNull { it.id == s.currentSemesterId }?.name
+            ScopeStrip(yearName, semesterName)
+        }
+
+        if (s.currentSemesterId == null) {
+            item {
+                SectionCard("Academic scope required") {
+                    Text("Select a year and semester to import into.")
+                    TextButton(
+                        onClick = { onNavigate(Routes.SETTINGS) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("OPEN SETTINGS") }
+                }
+            }
+        }
 
         item {
             SectionCard("Import target") {
@@ -104,31 +135,32 @@ fun AcademicScreen(onNavigate: (String) -> Unit = {}) {
         item {
             SectionCard("Semester ZIP") {
                 Text("Pick the semester archive (may contain nested module ZIPs).")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { picker.launch(arrayOf("application/zip", "application/x-zip-compressed")) }) {
-                        Text("Select ZIP")
-                    }
-                    val z = picked
-                    val semId = s.currentSemesterId
-                    Button(
-                        onClick = { if (z != null && semId != null) vm.importZip(z.uri, semId, z.name) },
-                        enabled = z != null && semId != null && s.ingest !is IngestState.Importing
-                    ) { Text("Import") }
-                    if (s.ingest is IngestState.Importing) {
-                        OutlinedButton(onClick = { vm.cancelImport() }) { Text("Cancel") }
-                    }
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { picker.launch(arrayOf("application/zip", "application/x-zip-compressed")) },
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                ) {
+                    Text("SELECT ZIP")
                 }
                 val z = picked
+                val semId = s.currentSemesterId
                 if (z != null) {
+                    Spacer(Modifier.height(4.dp))
                     StatRow("Archive", z.name)
                     StatRow("Size", formatBytes(z.size))
                 }
-                if (s.currentSemesterId == null) {
-                    Text("Select a year and semester first (System → Settings can create them).")
-                    TextButton(
-                        onClick = { onNavigate(Routes.SETTINGS) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("OPEN SETTINGS") }
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = { if (z != null && semId != null) vm.importZip(z.uri, semId, z.name) },
+                    enabled = z != null && semId != null && s.ingest !is IngestState.Importing,
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                ) { Text("IMPORT") }
+                if (s.ingest is IngestState.Importing) {
+                    Spacer(Modifier.height(4.dp))
+                    OutlinedButton(
+                        onClick = { vm.cancelImport() },
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) { Text("CANCEL") }
                 }
                 ImportStatus(s.ingest, s.currentSemesterId, onNavigate)
                 ExtractionStatus(s.extraction)
@@ -201,6 +233,7 @@ private fun ImportStatus(
     when (state) {
         is IngestState.Idle -> Unit
         is IngestState.Importing -> {
+            Text("IMPORTING…", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
             StatRow("Processing", state.currentEntry)
             StatRow("Files", "${state.processed} / ${state.total}")
@@ -208,6 +241,7 @@ private fun ImportStatus(
         }
         is IngestState.Done -> {
             val r = state.summary
+            Text("IMPORT COMPLETE", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             StatRow("Structure", "${r.modules} module(s), ${r.weeks} week(s)")
             StatRow("New", r.created.toString())
             StatRow("Changed", r.changed.toString())
@@ -234,6 +268,7 @@ private fun ImportStatus(
             ) { Text("SEARCH INDEX ›") }
         }
         is IngestState.Failed -> {
+            Text("IMPORT FAILED", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.error)
             Text("Import failed: ${state.reason}", color = MaterialTheme.colorScheme.error)
             Text("Processed before failure: ${state.processed}")
         }
@@ -254,6 +289,7 @@ private fun ExtractionStatus(state: ExtractionState) {
     when (state) {
         is ExtractionState.Idle -> Unit
         is ExtractionState.Progress -> {
+            Text("EXTRACTING…", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
             Text("Indexing…", style = MaterialTheme.typography.titleSmall)
             StatRow("Processing", state.currentEntry)
@@ -261,7 +297,7 @@ private fun ExtractionStatus(state: ExtractionState) {
         }
         is ExtractionState.Done -> {
             val r = state.summary
-            Text("Extraction", style = MaterialTheme.typography.titleSmall)
+            Text("EXTRACTION", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             StatRow("Extracted", r.extracted.toString())
             StatRow("Reused (duplicates)", r.reused.toString())
             StatRow("Skipped (unchanged)", r.skipped.toString())
