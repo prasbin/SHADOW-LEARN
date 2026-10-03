@@ -151,6 +151,9 @@ no secrets in the repo, no keystores/passwords committed.
   CARDS / START QUIZ / BROWSE MATERIAL, max 4, deduplicated against
   Focus and Recommendation) from existing state/routes only; 408/408
   unit tests; verified on CE_Test via dumps.
+- Intelligence Layer governing requirement recorded in
+  docs/INTELLIGENCE_LAYER.md (DESIGN ONLY; I1 Evidence Contract pending
+  review before any implementation).
 - Working: ZIP ingest + reconcile, extraction (PDF/DOCX/PPTX/TXT),
   FTS4/FTS5 search, deterministic quiz, XP/levels/streak, SM-2-lite
   flashcards + resume, Listener recording + segments, offline Vosk
