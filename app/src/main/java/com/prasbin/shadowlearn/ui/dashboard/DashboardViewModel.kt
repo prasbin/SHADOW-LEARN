@@ -42,7 +42,8 @@ data class DashboardUiState(
     val objectives: List<HomeObjective> = emptyList(),
     val weakAreas: List<WeakArea> = emptyList(),
     val activity: List<ActivityEvent> = emptyList(),
-    val recommendation: Recommendation? = null
+    val recommendation: Recommendation? = null,
+    val quickActions: List<QuickAction> = emptyList()
 )
 
 class DashboardViewModel(
@@ -95,7 +96,13 @@ class DashboardViewModel(
             objectives = snapshot?.objectives ?: emptyList(),
             weakAreas = snapshot?.weakAreas ?: emptyList(),
             activity = snapshot?.activity ?: emptyList(),
-            recommendation = snapshot?.recommendation
+            recommendation = snapshot?.recommendation,
+            quickActions = buildQuickActions(
+                snapshot?.focus,
+                snapshot?.recommendation,
+                snapshot?.objectives ?: emptyList(),
+                scopeValid
+            )
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardUiState())
 

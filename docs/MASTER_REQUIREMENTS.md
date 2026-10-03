@@ -147,6 +147,10 @@ no secrets in the repo, no keystores/passwords committed.
   styles, contentPadding nav fix, exact-case search keyboard, relevance %
   readout; engine untouched; 401/401 unit tests; quiz + listener journeys
   verified on CE_Test via dumps.
+- Home Quick Actions: context-aware fast entries (CONTINUE / REVIEW
+  CARDS / START QUIZ / BROWSE MATERIAL, max 4, deduplicated against
+  Focus and Recommendation) from existing state/routes only; 408/408
+  unit tests; verified on CE_Test via dumps.
 - Working: ZIP ingest + reconcile, extraction (PDF/DOCX/PPTX/TXT),
   FTS4/FTS5 search, deterministic quiz, XP/levels/streak, SM-2-lite
   flashcards + resume, Listener recording + segments, offline Vosk

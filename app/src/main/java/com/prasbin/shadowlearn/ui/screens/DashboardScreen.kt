@@ -166,6 +166,38 @@ fun DashboardScreen(onNavigate: (String) -> Unit = {}) {
                 }
             }
         }
+        if (s.quickActions.isNotEmpty()) {
+            item {
+                SectionCard("Quick Actions") {
+                    s.quickActions.forEach { action ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { go(action.target) }
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                action.title,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                "›",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Text(
+                            action.detail,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
         item {
             SectionCard("Academic Progress") {
                 StatRow("Progress", "${s.progressPct}%")
