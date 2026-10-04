@@ -19,6 +19,7 @@ import com.prasbin.shadowlearn.data.db.Semester
 import com.prasbin.shadowlearn.data.db.ShadowLearnDatabase
 import com.prasbin.shadowlearn.data.db.Week
 import com.prasbin.shadowlearn.data.intelligence.EvidenceRepository
+import com.prasbin.shadowlearn.data.intelligence.RecommendationKind
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -168,17 +169,102 @@ class SystemHomeRepositoryTest {
     }
 
     @Test
-    fun recommend_prefersDueOverEverythingElse() {
-        val rec = repo.recommend(
-            dueTotal = 2,
-            hasInProgressReview = true,
-            hasInProgressQuiz = true,
-            mistakeCount = 3,
-            pendingTranscripts = 4,
-            focus = FocusState("h", "d", HomeTarget.QUIZ),
-            hasModules = true
+    fun recommend_prefersDueOverEverythingElse() = runBlocking {
+        // Engine-owned priority now; covered by RecommendationEngineTest.
+        // Here: Room proof that file-only scope continues via focus.
+        seedScope()
+        val snap = runBlocking { repo.snapshot(semId, now) }
+        assertEquals(RecommendationKind.RESUME, snap.recommendation.kind)
+        assertEquals(HomeTarget.ACADEMIC, snap.recommendation.target)
+    }
+
+    private suspend fun seedMistakesOnDays(daysAgo: List<Long>, fileId: Long = 1, name: String = "notes.pdf") {
+        val quiz: QuizDao = db.quizDao()
+        for ((i, d) in daysAgo.withIndex()) {
+            val sid = quiz.insertSession(
+                QuizSession(
+                    semesterId = semId, seed = 100L + i, totalQuestions = 1, correctCount = 0,
+                    status = QuizSession.STATUS_COMPLETED,
+                    startedAt = now - d * 86_400_000L - 1_000,
+                    completedAt = now - d * 86_400_000L
+                )
+            )
+            quiz.insertQuestions(
+                listOf(
+                    QuizQuestion(
+                        sessionId = sid, position = 0, chunkId = 0, academicFileId = fileId,
+                        questionType = "MCQ", prompt = "Q$i", optionsJson = "[\"a\",\"b\"]",
+                        correctAnswer = "a", userAnswer = "b", isCorrect = false,
+                        srcFileName = name, srcFileType = "pdf", srcExcerpt = "excerpt"
+                    )
+                )
+            )
+        }
+    }
+
+    @Test
+    fun observedWeakness_drivesRecommendationAndWeakArea() = runBlocking {
+        seedScope()
+        seedMistakesOnDays(listOf(9, 5, 2))
+
+        val snap = repo.snapshot(semId, now)
+
+        assertEquals(RecommendationKind.WEAKNESS_OBSERVED, snap.recommendation.kind)
+        assertEquals(HomeTarget.CARDS, snap.recommendation.target)
+        assertEquals("Focus: notes.pdf.", snap.recommendation.text)
+        assertTrue(snap.weakAreas.any { it.label == "notes.pdf" })
+    }
+
+    @Test
+    fun scopeWithoutMaterial_recommendsImport() = runBlocking {
+        val academic: AcademicDao = db.academicDao()
+        val yearId = academic.insertYear(AcademicYear(name = "Year 1", sortOrder = 0))
+        val bareSem = academic.insertSemester(Semester(yearId = yearId, name = "S1", sortOrder = 0))
+
+        val snap = repo.snapshot(bareSem, now)
+
+        assertEquals(RecommendationKind.SETUP, snap.recommendation.kind)
+        assertEquals("Import your first semester ZIP.", snap.recommendation.text)
+    }
+
+    @Test
+    fun otherSemesterWeakness_isIgnored() = runBlocking {
+        seedScope()
+        val academic: AcademicDao = db.academicDao()
+        val year2 = academic.insertYear(AcademicYear(name = "Year 2", sortOrder = 1))
+        val sem2 = academic.insertSemester(Semester(yearId = year2, name = "S2", sortOrder = 0))
+        val mod2 = academic.insertModule(Module(semesterId = sem2, name = "M2"))
+        val week2 = academic.insertWeek(Week(moduleId = mod2, weekNumber = 1, title = "W1"))
+        val file2 = academic.insertFile(
+            AcademicFile(
+                weekId = week2, fileName = "other.pdf", filePath = "/tmp/other.pdf",
+                fileType = "pdf", sha256 = "def", relativePath = "other.pdf"
+            )
         )
-        assertEquals(HomeTarget.CARDS, rec.target)
-        assertEquals("Review 2 due cards first.", rec.text)
+        val savedSem = semId
+        semId = sem2
+        seedMistakesOnDays(listOf(9, 5, 2), fileId = file2, name = "other.pdf")
+        semId = savedSem
+
+        val snap = repo.snapshot(semId, now)
+
+        assertTrue(
+            snap.recommendation.kind != RecommendationKind.WEAKNESS_OBSERVED &&
+                snap.recommendation.kind != RecommendationKind.WEAKNESS_POSSIBLE
+        )
+        assertTrue(snap.weakAreas.none { it.label == "other.pdf" })
+    }
+
+    @Test
+    fun staleMistakes_fallThrough() = runBlocking {
+        seedScope()
+        seedMistakesOnDays(listOf(70, 65, 61))
+
+        val snap = repo.snapshot(semId, now)
+
+        assertTrue(
+            snap.recommendation.kind != RecommendationKind.WEAKNESS_OBSERVED &&
+                snap.recommendation.kind != RecommendationKind.WEAKNESS_POSSIBLE
+        )
     }
 }

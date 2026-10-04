@@ -61,7 +61,8 @@ data class FocusState(
 data class Recommendation(
     val text: String,
     val evidence: String,
-    val target: HomeTarget
+    val target: HomeTarget,
+    val kind: com.prasbin.shadowlearn.data.intelligence.RecommendationKind
 )
 
 /**
@@ -91,7 +92,8 @@ class SystemHomeRepository(
             Recommendation(
                 "Import your first semester ZIP.",
                 "No academic scope configured yet.",
-                HomeTarget.SETTINGS
+                HomeTarget.SETTINGS,
+                com.prasbin.shadowlearn.data.intelligence.RecommendationKind.SETUP
             )
     )
 
@@ -160,17 +162,27 @@ class SystemHomeRepository(
                 )
             }
 
-            val weakAreas = buildWeakAreas(semesterId, now)
+            // I2: one shared engine result feeds weak areas + recommendation.
+            val signals = evidence.weaknessSignals(semesterId, now)
+            val weakAreas = buildWeakAreas(signals, now)
             val activity = buildActivity(semesterId)
             val focus = buildFocus(semesterId, academicDao)
-            val recommendation = recommend(
-                dueTotal = dueTotal,
-                hasInProgressReview = inProgressDeck != null,
-                hasInProgressQuiz = inProgressQuiz != null,
-                mistakeCount = mistakes.size,
-                pendingTranscripts = pendingTranscripts,
-                focus = focus,
-                hasModules = academicDao.getModules(semesterId).isNotEmpty()
+            val recommendation = com.prasbin.shadowlearn.data.intelligence.RecommendationEngine.recommend(
+                com.prasbin.shadowlearn.data.intelligence.RecommendationInput(
+                    scopeValid = true,
+                    dueTotal = dueTotal,
+                    signals = signals,
+                    hasInProgressReview = inProgressDeck != null,
+                    hasInProgressQuiz = inProgressQuiz != null,
+                    hasLiveListenerSession = listenerSessions.any {
+                        it.status == ListenerSession.STATUS_RECORDING ||
+                            it.status == ListenerSession.STATUS_PAUSED ||
+                            it.status == ListenerSession.STATUS_INTERRUPTED
+                    },
+                    pendingTranscripts = pendingTranscripts,
+                    focus = focus,
+                    hasMaterial = extractionDao.filesOfSemester(semesterId).isNotEmpty()
+                )
             )
             HomeSnapshot(objectives, weakAreas, activity, focus, recommendation)
         }
@@ -180,8 +192,11 @@ class SystemHomeRepository(
      * OBSERVED/IMPROVING/POSSIBLE all surface (POSSIBLE muted by the
      * screen); empty evidence ⇒ empty list (UNKNOWN is section absence).
      */
-    private suspend fun buildWeakAreas(semesterId: Long, now: Long): List<WeakArea> =
-        evidence.weaknessSignals(semesterId, now).take(4).map { signal ->
+    private fun buildWeakAreas(
+        signals: List<com.prasbin.shadowlearn.data.intelligence.WeaknessSignal>,
+        now: Long
+    ): List<WeakArea> =
+        signals.take(4).map { signal ->
             WeakArea(
                 label = signal.homeLabel(),
                 detail = "${signal.status.name} — ${signal.homeDetail(now)}",
@@ -304,60 +319,6 @@ class SystemHomeRepository(
         return candidates.maxByOrNull { it.at }?.build()
     }
 
-    /**
-     * Deterministic recommendation: first matching rule wins, always with
-     * evidence. Never names concepts, never predicts, never invents.
-     */
-    fun recommend(
-        dueTotal: Int,
-        hasInProgressReview: Boolean,
-        hasInProgressQuiz: Boolean,
-        mistakeCount: Int,
-        pendingTranscripts: Int,
-        focus: FocusState?,
-        hasModules: Boolean
-    ): Recommendation = when {
-        dueTotal > 0 -> Recommendation(
-            "Review $dueTotal due card${if (dueTotal == 1) "" else "s"} first.",
-            "Spaced repetition is time-sensitive: $dueTotal waiting.",
-            HomeTarget.CARDS
-        )
-        hasInProgressReview -> Recommendation(
-            "Resume your review session.",
-            "An unfinished session is waiting.",
-            HomeTarget.CARDS
-        )
-        hasInProgressQuiz -> Recommendation(
-            "Resume your quiz.",
-            "An unfinished quiz is waiting.",
-            HomeTarget.QUIZ
-        )
-        mistakeCount > 0 -> Recommendation(
-            "Review $mistakeCount quiz mistake${if (mistakeCount == 1) "" else "s"}.",
-            "Wrong answers are waiting as review cards.",
-            HomeTarget.CARDS
-        )
-        pendingTranscripts > 0 -> Recommendation(
-            "Transcribe $pendingTranscripts segment${if (pendingTranscripts == 1) "" else "s"}.",
-            "Pending transcripts can't feed review yet.",
-            HomeTarget.LISTEN
-        )
-        focus != null -> Recommendation(
-            "Continue: ${focus.headline}.",
-            focus.detail,
-            focus.target
-        )
-        hasModules -> Recommendation(
-            "Explore your modules.",
-            "No recent activity to continue from.",
-            HomeTarget.ACADEMIC
-        )
-        else -> Recommendation(
-            "Import your first semester ZIP.",
-            "No academic scope configured yet.",
-            HomeTarget.SETTINGS
-        )
-    }
 
     companion object {
         private const val MISTAKE_LIMIT = 200

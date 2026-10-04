@@ -3,6 +3,7 @@ package com.prasbin.shadowlearn.ui.dashboard
 import com.prasbin.shadowlearn.data.home.FocusState
 import com.prasbin.shadowlearn.data.home.HomeObjective
 import com.prasbin.shadowlearn.data.home.HomeTarget
+import com.prasbin.shadowlearn.data.intelligence.RecommendationKind
 import com.prasbin.shadowlearn.data.home.ObjectiveKind
 import com.prasbin.shadowlearn.data.home.Recommendation
 import org.junit.Assert.assertEquals
@@ -16,8 +17,10 @@ class QuickActionsTest {
         ObjectiveKind.DUE_REVIEW, "Review $n due", "detail", n, HomeTarget.CARDS
     )
 
-    private val quizRecommendation = Recommendation("Quiz now", "evidence", HomeTarget.QUIZ)
-    private val cardsRecommendation = Recommendation("Review now", "evidence", HomeTarget.CARDS)
+    private val quizRecommendation =
+        Recommendation("Quiz now", "evidence", HomeTarget.QUIZ, RecommendationKind.RESUME)
+    private val cardsRecommendation =
+        Recommendation("Review now", "evidence", HomeTarget.CARDS, RecommendationKind.DUE_REVIEW)
     private val cardsFocus = FocusState("Spaced review", "detail", HomeTarget.CARDS)
     private val listenFocus = FocusState("Lecture capture", "detail", HomeTarget.LISTEN)
 

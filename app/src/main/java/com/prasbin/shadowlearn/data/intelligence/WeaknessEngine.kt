@@ -33,6 +33,17 @@ object WeaknessEngine {
     const val DAY_MS = 86_400_000L
 
     /**
+     * Canonical signal ordering (strongest evidence, most recent, then
+     * stable file name). Shared with [RecommendationEngine] so both agree
+     * even on unsorted inputs — determinism must not depend on callers.
+     */
+    val SIGNAL_ORDER: Comparator<WeaknessSignal> =
+        compareByDescending<WeaknessSignal> { it.status.rank }
+            .thenByDescending { it.mistakeCount + it.againCount }
+            .thenByDescending { it.newestAt }
+            .thenBy { it.fileName }
+
+    /**
      * Evaluates grouped evidence into ranked signals. Groups key on
      * `file:<id>` when the file resolves, else `name:<snapshot>` (dangling
      * sources can only ever reach POSSIBLE). Empty input ⇒ empty output
@@ -124,11 +135,7 @@ object WeaknessEngine {
                 )
             )
         }
-        return out.sortedWith(
-            compareByDescending<WeaknessSignal> { it.status.rank }
-                .thenByDescending { it.mistakeCount + it.againCount }
-                .thenByDescending { it.newestAt }
-        )
+        return out.sortedWith(SIGNAL_ORDER)
     }
 
     private fun keyOf(fileId: Long?, name: String): String =
@@ -195,5 +202,20 @@ data class WeaknessSignal(
             WeaknessStatus.POSSIBLE -> "POSSIBLE"
         }
         return "$tag — ${homeDetail(now)}"
+    }
+
+    /** Count-based evidence phrase for recommendations (no recency claim). */
+    fun evidenceSummary(): String {
+        val bits = mutableListOf<String>()
+        if (mistakeCount > 0) {
+            bits.add(
+                "$mistakeCount incorrect answer${if (mistakeCount == 1) "" else "s"} " +
+                    "across $mistakeSessions session${if (mistakeSessions == 1) "" else "s"}"
+            )
+        }
+        if (againCount > 0) {
+            bits.add("$againCount AGAIN review${if (againCount == 1) "" else "s"}")
+        }
+        return bits.joinToString(" + ").ifEmpty { "limited evidence" }
     }
 }
