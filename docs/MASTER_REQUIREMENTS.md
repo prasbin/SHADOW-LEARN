@@ -164,6 +164,11 @@ no secrets in the repo, no keystores/passwords committed.
   with provenance; OPEN SOURCE on Home recommendation/weak areas + Status
   signals via existing hierarchy routes; no viewer/embeddings/AI;
   455/455 unit tests; verified on Redmi Note 14 5G with screenshots.
+- I4 grounded explanations: pure extractive ExplanationEngine (verbatim
+  lead sentences, fixed glue, GENERATED vs VERIFIED firewall) + shared
+  ExplanationDialog on Home weak areas/recommendation and Status signals;
+  distinct failure states incl. INSUFFICIENT_EVIDENCE; no AI/cloud/viewer;
+  466/466 unit tests; verified on Redmi Note 14 5G with screenshots.
 - Intelligence Layer governing requirement recorded in
   docs/INTELLIGENCE_LAYER.md (DESIGN ONLY; I1 Evidence Contract pending
   review before any implementation).

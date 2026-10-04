@@ -42,7 +42,9 @@ data class WeakArea(
     /** I1 signal status driving the tint: OBSERVED / IMPROVING / POSSIBLE. */
     val status: String = WeaknessStatus.POSSIBLE.name,
     /** Owning week for OPEN SOURCE routing (else null = no action shown). */
-    val sourceWeekId: Long? = null
+    val sourceWeekId: Long? = null,
+    /** Grounded explanation when the source resolved (else null = no EXPLAIN). */
+    val explanation: com.prasbin.shadowlearn.data.intelligence.GroundedExplanation? = null
 )
 
 /** One human-readable activity feed row. */
@@ -70,7 +72,9 @@ data class Recommendation(
     /** Verbatim indexed excerpt backing the recommendation (else null). */
     val sourceExcerpt: String? = null,
     /** Owning week for OPEN SOURCE routing (else null = no action shown). */
-    val sourceWeekId: Long? = null
+    val sourceWeekId: Long? = null,
+    /** Grounded explanation when the source resolved (else null = no EXPLAIN). */
+    val explanation: com.prasbin.shadowlearn.data.intelligence.GroundedExplanation? = null
 )
 
 /**
@@ -173,7 +177,13 @@ class SystemHomeRepository(
 
             // I2: one shared engine result feeds weak areas + recommendation.
             val signals = evidence.weaknessSignals(semesterId, now)
-            val weakAreas = buildWeakAreas(signals, now)
+            // I4: one shared explanations map feeds weak areas + recommendation.
+            val explanations = retrieval.explainAll(
+                semesterId,
+                signals,
+                "Explain the material associated with this weak area."
+            )
+            val weakAreas = buildWeakAreas(signals, explanations, now)
             val activity = buildActivity(semesterId)
             val focus = buildFocus(semesterId, academicDao)
             val recommendation = com.prasbin.shadowlearn.data.intelligence.RecommendationEngine.recommend(
@@ -194,7 +204,8 @@ class SystemHomeRepository(
                 )
             )
             // I3: ground weakness recommendations with source + excerpt.
-            val grounded = groundRecommendation(recommendation, signals, semesterId)
+            // I4: attach the same shared explanation when the source resolved.
+            val grounded = groundRecommendation(recommendation, signals, semesterId, explanations)
             HomeSnapshot(objectives, weakAreas, activity, focus, grounded)
         }
 
@@ -207,7 +218,8 @@ class SystemHomeRepository(
     private suspend fun groundRecommendation(
         recommendation: Recommendation,
         signals: List<com.prasbin.shadowlearn.data.intelligence.WeaknessSignal>,
-        semesterId: Long
+        semesterId: Long,
+        explanations: Map<Long, com.prasbin.shadowlearn.data.intelligence.GroundedExplanation>
     ): Recommendation {
         val wanted = when (recommendation.kind) {
             com.prasbin.shadowlearn.data.intelligence.RecommendationKind.WEAKNESS_OBSERVED ->
@@ -223,7 +235,7 @@ class SystemHomeRepository(
                 semesterId = semesterId, fileId = fileId, maxChunks = 1
             )
         )
-        return when (result) {
+        val base = when (result) {
             is com.prasbin.shadowlearn.data.intelligence.RetrievalResult.Retrieved -> recommendation.copy(
                 sourceFileName = signal.fileName,
                 sourceExcerpt = result.chunks.first().excerpt,
@@ -234,6 +246,8 @@ class SystemHomeRepository(
                 sourceWeekId = signal.weekId
             )
         }
+        // I4: same shared explanation object the weak-area row carries.
+        return base.copy(explanation = explanations[fileId])
     }
 
     /**
@@ -243,6 +257,7 @@ class SystemHomeRepository(
      */
     private fun buildWeakAreas(
         signals: List<com.prasbin.shadowlearn.data.intelligence.WeaknessSignal>,
+        explanations: Map<Long, com.prasbin.shadowlearn.data.intelligence.GroundedExplanation>,
         now: Long
     ): List<WeakArea> =
         signals.take(4).map { signal ->
@@ -251,7 +266,8 @@ class SystemHomeRepository(
                 detail = "${signal.status.name} — ${signal.homeDetail(now)}",
                 target = HomeTarget.CARDS,
                 status = signal.status.name,
-                sourceWeekId = signal.weekId
+                sourceWeekId = signal.weekId,
+                explanation = signal.fileId?.let { explanations[it] }
             )
         }
 

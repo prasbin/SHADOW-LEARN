@@ -26,7 +26,9 @@ data class RetrievedChunk(
     val pageNumber: Long?,
     val chunkIndex: Int,
     val weekLabel: String?,
-    val moduleName: String?
+    val moduleName: String?,
+    /** Owning week for OPEN SOURCE routing (null when unresolvable). */
+    val weekId: Long? = null
 )
 
 /** Retrieval outcome — the four states are never collapsed. */

@@ -308,4 +308,42 @@ class SystemHomeRepositoryTest {
         val area = snap.weakAreas.first { it.label == "notes.pdf" }
         assertEquals(snap.recommendation.sourceWeekId, area.sourceWeekId)
     }
+
+    @Test
+    fun weaknessExplanation_isGroundedInIndexedText() = runBlocking {
+        seedScope()
+        seedMistakesOnDays(listOf(9, 5, 2))
+        val fileId = db.extractionDao().filesOfSemester(semId).first().id
+        db.extractionDao().insertChunks(
+            listOf(
+                com.prasbin.shadowlearn.data.db.DocumentChunk(
+                    academicFileId = fileId, chunkIndex = 0, pageNumber = 2,
+                    text = "Mitosis divides one cell into two identical cells. It has several phases.",
+                    charCount = 74
+                ),
+                com.prasbin.shadowlearn.data.db.DocumentChunk(
+                    academicFileId = fileId, chunkIndex = 1, pageNumber = 3,
+                    text = "Meiosis produces four gametes.",
+                    charCount = 29
+                )
+            )
+        )
+
+        val snap = repo.snapshot(semId, now)
+
+        // T12: weakness → retrieval → explanation → source chain.
+        val area = snap.weakAreas.first { it.label == "notes.pdf" }
+        val expl = area.explanation
+        assertTrue(expl != null)
+        assertEquals(
+            com.prasbin.shadowlearn.data.intelligence.ExplanationStatus.EXPLAINED,
+            expl!!.status
+        )
+        assertTrue(expl.explanation.contains("Mitosis divides one cell into two identical cells."))
+        assertEquals("notes.pdf", expl.sources[0].fileName)
+        assertEquals(2L, expl.sources[0].pageNumber)
+        // T13: recommendation carries the same grounded explanation.
+        assertEquals(expl, snap.recommendation.explanation)
+        assertTrue(snap.recommendation.sourceExcerpt != null)
+    }
 }

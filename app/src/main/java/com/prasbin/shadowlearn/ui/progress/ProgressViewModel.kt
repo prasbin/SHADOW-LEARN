@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.prasbin.shadowlearn.data.AppContainer
+import com.prasbin.shadowlearn.data.intelligence.GroundedExplanation
 import com.prasbin.shadowlearn.data.intelligence.WeaknessSignal
 import com.prasbin.shadowlearn.data.progression.ProgressMilestones
 import kotlinx.coroutines.flow.SharingStarted
@@ -30,7 +31,9 @@ data class ProgressUiState(
     val currentSemester: String = "Not configured",
     val scopeValid: Boolean = false,
     /** Same I1 engine result Home reads (max 3 displayed); empty = UNKNOWN. */
-    val learningSignals: List<WeaknessSignal> = emptyList()
+    val learningSignals: List<WeaknessSignal> = emptyList(),
+    /** I4 explanations keyed by owning file id — same shared objects as Home. */
+    val signalExplanations: Map<Long, GroundedExplanation> = emptyMap()
 )
 
 class ProgressViewModel(context: Context) : ViewModel() {
@@ -40,6 +43,7 @@ class ProgressViewModel(context: Context) : ViewModel() {
     private val academicProgress = AppContainer.academicProgress(context.applicationContext)
     private val progression = AppContainer.progression(context.applicationContext)
     private val evidence = AppContainer.evidence(context.applicationContext)
+    private val retrieval = AppContainer.retrieval(context.applicationContext)
 
     val state = combine(
         combine(
@@ -60,6 +64,14 @@ class ProgressViewModel(context: Context) : ViewModel() {
         val semesterName = if (yearId == null || semesterId == null) null else runCatching {
             dao.getSemesters(yearId).firstOrNull { it.id == semesterId }?.name
         }.getOrNull()
+        val scopeOk = yearName != null && semesterName != null && semesterId != null
+        val signals = if (scopeOk) {
+            runCatching {
+                evidence.weaknessSignals(semesterId!!, System.currentTimeMillis()).take(3)
+            }.getOrDefault(emptyList())
+        } else {
+            emptyList()
+        }
         ProgressUiState(
             percent = progress.percent,
             basis = progress.basis,
@@ -70,12 +82,17 @@ class ProgressViewModel(context: Context) : ViewModel() {
             currentYear = yearName ?: if (yearId == null) "Not configured" else "Selection unavailable",
             currentSemester = semesterName ?: if (semesterId == null) "Not configured" else "Selection unavailable",
             scopeValid = yearName != null && semesterName != null,
-            learningSignals = if (yearName != null && semesterName != null && semesterId != null) {
+            learningSignals = signals,
+            signalExplanations = if (scopeOk) {
                 runCatching {
-                    evidence.weaknessSignals(semesterId, System.currentTimeMillis()).take(3)
-                }.getOrDefault(emptyList())
+                    retrieval.explainAll(
+                        semesterId!!,
+                        signals,
+                        "Explain the material associated with this weak area."
+                    )
+                }.getOrDefault(emptyMap())
             } else {
-                emptyList()
+                emptyMap()
             }
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProgressUiState())

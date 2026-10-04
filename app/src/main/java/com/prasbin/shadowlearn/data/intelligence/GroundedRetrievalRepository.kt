@@ -47,7 +47,8 @@ class GroundedRetrievalRepository(
                                 pageNumber = chunk.pageNumber,
                                 chunkIndex = chunk.chunkIndex,
                                 weekLabel = scope.weekLabel,
-                                moduleName = scope.moduleName
+                                moduleName = scope.moduleName,
+                                weekId = scope.weekId
                             )
                         )
                     )
@@ -75,7 +76,8 @@ class GroundedRetrievalRepository(
                                 pageNumber = it.pageNumber,
                                 chunkIndex = it.chunkIndex,
                                 weekLabel = scope.weekLabel,
-                                moduleName = scope.moduleName
+                                moduleName = scope.moduleName,
+                                weekId = scope.weekId
                             )
                         }
                 )
@@ -111,21 +113,55 @@ class GroundedRetrievalRepository(
     private data class FileScope(
         val fileName: String,
         val semesterId: Long,
+        val weekId: Long?,
         val weekLabel: String?,
         val moduleName: String?
     )
 
     private suspend fun fileScope(fileId: Long): FileScope? {
         val file = academicDao.file(fileId) ?: return null
-        val week = academicDao.week(file.weekId) ?: return FileScope(file.fileName, -1, null, null)
-        val module = academicDao.module(week.moduleId) ?: return FileScope(file.fileName, -1, null, null)
+        val week = academicDao.week(file.weekId) ?: return FileScope(file.fileName, -1, null, null, null)
+        val module = academicDao.module(week.moduleId) ?: return FileScope(file.fileName, -1, null, null, null)
         val semester = academicDao.semester(module.semesterId)
-            ?: return FileScope(file.fileName, -1, null, null)
+            ?: return FileScope(file.fileName, -1, null, null, null)
         return FileScope(
             fileName = file.fileName,
             semesterId = semester.id,
+            weekId = week.id,
             weekLabel = "Week ${week.weekNumber}",
             moduleName = module.name
         )
+    }
+
+    /**
+     * I4 single-source explanation: retrieve then explain. Shared by Home
+     * and Status — never separate explanation paths.
+     */
+    suspend fun explain(label: String, request: RetrievalRequest): GroundedExplanation =
+        withContext(dispatcher) {
+            ExplanationEngine.explain(label, retrieve(request))
+        }
+
+    /**
+     * I4 batch explanations for weakness signals (bounded by [maxSignals]).
+     * Keyed by owning file id; signals without a resolvable file are
+     * skipped (their UI shows no EXPLAIN action — honest unavailable).
+     */
+    suspend fun explainAll(
+        semesterId: Long,
+        signals: List<WeaknessSignal>,
+        label: String,
+        maxSignals: Int = 4
+    ): Map<Long, GroundedExplanation> = withContext(dispatcher) {
+        val out = mutableMapOf<Long, GroundedExplanation>()
+        for (signal in signals.take(maxSignals.coerceAtLeast(0))) {
+            val fileId = signal.fileId ?: continue
+            if (out.containsKey(fileId)) continue
+            out[fileId] = explain(
+                label,
+                RetrievalRequest(semesterId = semesterId, fileId = fileId, maxChunks = 3)
+            )
+        }
+        out
     }
 }

@@ -16,6 +16,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -23,8 +26,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.prasbin.shadowlearn.data.home.HomeTarget
+import com.prasbin.shadowlearn.data.intelligence.GroundedExplanation
 import com.prasbin.shadowlearn.data.intelligence.WeaknessStatus
 import com.prasbin.shadowlearn.navigation.Routes
+import com.prasbin.shadowlearn.ui.components.ExplanationDialog
 import com.prasbin.shadowlearn.ui.components.SectionCard
 import com.prasbin.shadowlearn.ui.components.StatRow
 import com.prasbin.shadowlearn.ui.dashboard.DashboardViewModel
@@ -48,6 +53,7 @@ fun DashboardScreen(onNavigate: (String) -> Unit = {}) {
     val vm: DashboardViewModel = viewModel(factory = DashboardViewModel.factory(context))
     val s by vm.state.collectAsStateWithLifecycle()
     val go = { target: HomeTarget -> onNavigate(target.toRoute()) }
+    var explanation: GroundedExplanation? by remember { mutableStateOf<GroundedExplanation?>(null) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -181,6 +187,13 @@ fun DashboardScreen(onNavigate: (String) -> Unit = {}) {
                     Button(onClick = { go(recommendation.target) }, modifier = Modifier.fillMaxWidth()) {
                         Text("Do it")
                     }
+                    recommendation.explanation?.let { expl ->
+                        Spacer(Modifier.height(4.dp))
+                        TextButton(
+                            onClick = { explanation = expl },
+                            modifier = Modifier.fillMaxWidth().height(48.dp)
+                        ) { Text("EXPLAIN ›") }
+                    }
                     recommendation.sourceWeekId?.let { weekId ->
                         Spacer(Modifier.height(4.dp))
                         TextButton(
@@ -265,6 +278,12 @@ fun DashboardScreen(onNavigate: (String) -> Unit = {}) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        area.explanation?.let { expl ->
+                            TextButton(
+                                onClick = { explanation = expl },
+                                modifier = Modifier.fillMaxWidth().height(48.dp)
+                            ) { Text("EXPLAIN ›") }
+                        }
                         area.sourceWeekId?.let { weekId ->
                             TextButton(
                                 onClick = { onNavigate(Routes.hierarchyWeek(weekId)) },
@@ -303,5 +322,14 @@ fun DashboardScreen(onNavigate: (String) -> Unit = {}) {
                 }
             }
         }
+    }
+    explanation?.let { expl ->
+        ExplanationDialog(
+            explanation = expl,
+            onOpenSource = { weekId -> explanation = null; onNavigate(Routes.hierarchyWeek(weekId)) },
+            onOpenMaterial = { explanation = null; onNavigate(Routes.hierarchyRoot()) },
+            onOpenSearch = { explanation = null; onNavigate(Routes.SEARCH) },
+            onDismiss = { explanation = null }
+        )
     }
 }
