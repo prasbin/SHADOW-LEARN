@@ -151,6 +151,11 @@ no secrets in the repo, no keystores/passwords committed.
   CARDS / START QUIZ / BROWSE MATERIAL, max 4, deduplicated against
   Focus and Recommendation) from existing state/routes only; 408/408
   unit tests; verified on CE_Test via dumps.
+- I1 evidence + weakness layer: EvidenceRepository (single shared read),
+  pure WeaknessEngine (OBSERVED/POSSIBLE/IMPROVING, source-file level, no
+  scores/concepts/AI), Home Weak Areas upgrade with status tint, Status
+  Learning Signals (same objects); no tables/migrations; 426/426 unit
+  tests; verified on Redmi Note 14 5G with screenshots.
 - Intelligence Layer governing requirement recorded in
   docs/INTELLIGENCE_LAYER.md (DESIGN ONLY; I1 Evidence Contract pending
   review before any implementation).

@@ -8,6 +8,8 @@ import com.prasbin.shadowlearn.data.db.ListenerSession
 import com.prasbin.shadowlearn.data.db.QuizDao
 import com.prasbin.shadowlearn.data.db.QuizSession
 import com.prasbin.shadowlearn.data.db.ReviewSession
+import com.prasbin.shadowlearn.data.intelligence.EvidenceRepository
+import com.prasbin.shadowlearn.data.intelligence.WeaknessStatus
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -36,7 +38,9 @@ enum class ObjectiveKind {
 data class WeakArea(
     val label: String,
     val detail: String,
-    val target: HomeTarget
+    val target: HomeTarget,
+    /** I1 signal status driving the tint: OBSERVED / IMPROVING / POSSIBLE. */
+    val status: String = WeaknessStatus.POSSIBLE.name
 )
 
 /** One human-readable activity feed row. */
@@ -74,6 +78,7 @@ class SystemHomeRepository(
     private val quizDao: QuizDao,
     private val flashcardDao: FlashcardDao,
     private val listenerDao: ListenerDao,
+    private val evidence: EvidenceRepository,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
 
@@ -155,7 +160,7 @@ class SystemHomeRepository(
                 )
             }
 
-            val weakAreas = buildWeakAreas(semesterId)
+            val weakAreas = buildWeakAreas(semesterId, now)
             val activity = buildActivity(semesterId)
             val focus = buildFocus(semesterId, academicDao)
             val recommendation = recommend(
@@ -170,51 +175,20 @@ class SystemHomeRepository(
             HomeSnapshot(objectives, weakAreas, activity, focus, recommendation)
         }
 
-    private suspend fun buildWeakAreas(semesterId: Long): List<WeakArea> {
-        val scored = mutableListOf<Pair<WeakArea, Int>>()
-        // Quiz mistakes grouped by source file (existing rows only).
-        flashcardDao.mistakeQuestionsOfSemester(semesterId, MISTAKE_LIMIT)
-            .groupBy { it.srcFileName.ifBlank { "Unknown file" } }
-            .mapValues { it.value.size }
-            .toList()
-            .sortedByDescending { it.second }
-            .take(3)
-            .forEach { (file, n) ->
-                scored.add(
-                    WeakArea(
-                        label = file,
-                        detail = "$n quiz mistake${if (n == 1) "" else "s"}",
-                        HomeTarget.CARDS
-                    ) to n
-                )
-            }
-        // Repeatedly lapsed cards grouped by their source citation.
-        val decks = flashcardDao.decksOfSemester(semesterId)
-        val againBySource = mutableMapOf<String, Int>()
-        for (deck in decks) {
-            val sessions = flashcardDao.reviewSessionsOfDeck(deck.id)
-                .sortedByDescending { it.startedAt }.take(10)
-            for (session in sessions) {
-                for (event in flashcardDao.reviewEvents(session.id)) {
-                    if (event.rating != "AGAIN") continue
-                    val card = flashcardDao.card(event.flashcardId) ?: continue
-                    val label = card.sourceLabel.ifBlank { "Unknown source" }
-                    againBySource[label] = (againBySource[label] ?: 0) + 1
-                }
-            }
+    /**
+     * I1 weak areas: shared engine output mapped to Home rows (max 4).
+     * OBSERVED/IMPROVING/POSSIBLE all surface (POSSIBLE muted by the
+     * screen); empty evidence ⇒ empty list (UNKNOWN is section absence).
+     */
+    private suspend fun buildWeakAreas(semesterId: Long, now: Long): List<WeakArea> =
+        evidence.weaknessSignals(semesterId, now).take(4).map { signal ->
+            WeakArea(
+                label = signal.homeLabel(),
+                detail = "${signal.status.name} — ${signal.homeDetail(now)}",
+                target = HomeTarget.CARDS,
+                status = signal.status.name
+            )
         }
-        againBySource.toList().sortedByDescending { it.second }.take(3)
-            .forEach { (label, n) ->
-                scored.add(
-                    WeakArea(
-                        label = label,
-                        detail = "$n lapsed review${if (n == 1) "" else "s"}",
-                        HomeTarget.CARDS
-                    ) to n
-                )
-            }
-        return scored.sortedByDescending { it.second }.take(4).map { it.first }
-    }
 
     private suspend fun buildActivity(semesterId: Long): List<ActivityEvent> {
         val out = mutableListOf<ActivityEvent>()

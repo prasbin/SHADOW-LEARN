@@ -143,6 +143,37 @@ abstract class QuizDao {
             "WHERE m.semesterId = :semesterId"
     )
     abstract suspend fun indexedChunkCount(semesterId: Long): Int
+
+    // ---- I1 evidence (read-only, bounded, semester-scoped joins) ----------
+
+    /**
+     * Wrong answers of completed sessions with session time. Recency is
+     * session-grained: questions carry no per-answer timestamp (contract §5).
+     */
+    @Query(
+        "SELECT q.id AS questionId, q.sessionId AS sessionId, " +
+            "q.academicFileId AS academicFileId, q.chunkId AS chunkId, " +
+            "q.srcFileName AS srcFileName, " +
+            "IFNULL(s.completedAt, s.startedAt) AS observedAt " +
+            "FROM quiz_questions q JOIN quiz_sessions s ON s.id = q.sessionId " +
+            "WHERE s.semesterId = :semesterId AND s.status = 'completed' " +
+            "AND q.isCorrect = 0 AND q.userAnswer IS NOT NULL " +
+            "ORDER BY observedAt DESC LIMIT :limit"
+    )
+    abstract suspend fun wrongAnswerEvents(semesterId: Long, limit: Int): List<AnswerEventRow>
+
+    /** Correct answers of completed sessions (I1 improvement evidence). */
+    @Query(
+        "SELECT q.id AS questionId, q.sessionId AS sessionId, " +
+            "q.academicFileId AS academicFileId, q.chunkId AS chunkId, " +
+            "q.srcFileName AS srcFileName, " +
+            "IFNULL(s.completedAt, s.startedAt) AS observedAt " +
+            "FROM quiz_questions q JOIN quiz_sessions s ON s.id = q.sessionId " +
+            "WHERE s.semesterId = :semesterId AND s.status = 'completed' " +
+            "AND q.isCorrect = 1 AND q.userAnswer IS NOT NULL " +
+            "ORDER BY observedAt DESC LIMIT :limit"
+    )
+    abstract suspend fun correctAnswerEvents(semesterId: Long, limit: Int): List<AnswerEventRow>
 }
 
 /** Aggregated session stats read by the Quiz idle screen (raw, honest). */
@@ -162,4 +193,18 @@ data class QuizChunkRow(
     val text: String,
     val fileName: String,
     val fileType: String
+)
+
+/**
+ * One answered-question event for I1 evidence (see
+ * [QuizDao.wrongAnswerEvents]/[QuizDao.correctAnswerEvents]). Recency is
+ * session-grained: questions carry no per-answer timestamp.
+ */
+data class AnswerEventRow(
+    val questionId: Long,
+    val sessionId: Long,
+    val academicFileId: Long,
+    val chunkId: Long,
+    val srcFileName: String,
+    val observedAt: Long
 )

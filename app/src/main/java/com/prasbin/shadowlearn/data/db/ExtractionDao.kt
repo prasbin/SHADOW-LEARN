@@ -52,6 +52,10 @@ abstract class ExtractionDao {
     @Query("SELECT * FROM document_chunks WHERE academicFileId = :fileId ORDER BY chunkIndex")
     abstract suspend fun chunksForFile(fileId: Long): List<DocumentChunk>
 
+    /** Single chunk by id (I1 source resolution: card chunk → owning file). */
+    @Query("SELECT * FROM document_chunks WHERE id = :id LIMIT 1")
+    abstract suspend fun chunk(id: Long): DocumentChunk?
+
     @Query("SELECT COUNT(*) FROM document_chunks WHERE academicFileId = :fileId")
     abstract suspend fun chunkCountForFile(fileId: Long): Int
 

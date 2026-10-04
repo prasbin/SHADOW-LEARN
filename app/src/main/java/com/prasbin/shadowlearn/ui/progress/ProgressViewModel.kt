@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.prasbin.shadowlearn.data.AppContainer
+import com.prasbin.shadowlearn.data.intelligence.WeaknessSignal
 import com.prasbin.shadowlearn.data.progression.ProgressMilestones
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
@@ -27,7 +28,9 @@ data class ProgressUiState(
     val streak: Int = 0,
     val currentYear: String = "Not configured",
     val currentSemester: String = "Not configured",
-    val scopeValid: Boolean = false
+    val scopeValid: Boolean = false,
+    /** Same I1 engine result Home reads (max 3 displayed); empty = UNKNOWN. */
+    val learningSignals: List<WeaknessSignal> = emptyList()
 )
 
 class ProgressViewModel(context: Context) : ViewModel() {
@@ -36,6 +39,7 @@ class ProgressViewModel(context: Context) : ViewModel() {
     private val settings = AppContainer.settings(context.applicationContext)
     private val academicProgress = AppContainer.academicProgress(context.applicationContext)
     private val progression = AppContainer.progression(context.applicationContext)
+    private val evidence = AppContainer.evidence(context.applicationContext)
 
     val state = combine(
         combine(
@@ -65,7 +69,14 @@ class ProgressViewModel(context: Context) : ViewModel() {
             streak = prog.streak,
             currentYear = yearName ?: if (yearId == null) "Not configured" else "Selection unavailable",
             currentSemester = semesterName ?: if (semesterId == null) "Not configured" else "Selection unavailable",
-            scopeValid = yearName != null && semesterName != null
+            scopeValid = yearName != null && semesterName != null,
+            learningSignals = if (yearName != null && semesterName != null && semesterId != null) {
+                runCatching {
+                    evidence.weaknessSignals(semesterId, System.currentTimeMillis()).take(3)
+                }.getOrDefault(emptyList())
+            } else {
+                emptyList()
+            }
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProgressUiState())
 

@@ -152,6 +152,20 @@ object AppContainer {
         }
 
     @Volatile
+    private var evidenceRepo: com.prasbin.shadowlearn.data.intelligence.EvidenceRepository? = null
+
+    /** I1 evidence aggregation — single shared instance for Home + Status. */
+    fun evidence(context: Context): com.prasbin.shadowlearn.data.intelligence.EvidenceRepository =
+        evidenceRepo ?: synchronized(this) {
+            evidenceRepo ?: com.prasbin.shadowlearn.data.intelligence.EvidenceRepository(
+                academicDao = database(context).academicDao(),
+                extractionDao = database(context).extractionDao(),
+                quizDao = database(context).quizDao(),
+                flashcardDao = database(context).flashcardDao()
+            ).also { evidenceRepo = it }
+        }
+
+    @Volatile
     private var homeRepo: com.prasbin.shadowlearn.data.home.SystemHomeRepository? = null
 
     /** System Home aggregation: objectives, weak areas, activity, focus, recommendation. */
@@ -162,7 +176,8 @@ object AppContainer {
                 extractionDao = database(context).extractionDao(),
                 quizDao = database(context).quizDao(),
                 flashcardDao = database(context).flashcardDao(),
-                listenerDao = database(context).listenerDao()
+                listenerDao = database(context).listenerDao(),
+                evidence = evidence(context)
             ).also { homeRepo = it }
         }
 

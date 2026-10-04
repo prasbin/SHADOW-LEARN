@@ -18,6 +18,7 @@ import com.prasbin.shadowlearn.data.db.ReviewSession
 import com.prasbin.shadowlearn.data.db.Semester
 import com.prasbin.shadowlearn.data.db.ShadowLearnDatabase
 import com.prasbin.shadowlearn.data.db.Week
+import com.prasbin.shadowlearn.data.intelligence.EvidenceRepository
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -52,7 +53,10 @@ class SystemHomeRepositoryTest {
         ).allowMainThreadQueries().build()
         repo = SystemHomeRepository(
             db.academicDao(), db.extractionDao(), db.quizDao(),
-            db.flashcardDao(), db.listenerDao()
+            db.flashcardDao(), db.listenerDao(),
+            EvidenceRepository(
+                db.academicDao(), db.extractionDao(), db.quizDao(), db.flashcardDao()
+            )
         )
     }
 

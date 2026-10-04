@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.prasbin.shadowlearn.data.home.HomeTarget
+import com.prasbin.shadowlearn.data.intelligence.WeaknessStatus
 import com.prasbin.shadowlearn.navigation.Routes
 import com.prasbin.shadowlearn.ui.components.SectionCard
 import com.prasbin.shadowlearn.ui.components.StatRow
@@ -229,6 +230,9 @@ fun DashboardScreen(onNavigate: (String) -> Unit = {}) {
                             Text(
                                 area.label,
                                 style = MaterialTheme.typography.bodyMedium,
+                                color = if (area.status == WeaknessStatus.OBSERVED.name)
+                                    MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.weight(1f)
                             )
                             Text(

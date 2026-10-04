@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -25,6 +26,7 @@ import com.prasbin.shadowlearn.navigation.Routes
 import com.prasbin.shadowlearn.ui.components.SectionCard
 import com.prasbin.shadowlearn.ui.components.GroupSwitcher
 import com.prasbin.shadowlearn.ui.components.StatRow
+import com.prasbin.shadowlearn.data.intelligence.WeaknessStatus
 import com.prasbin.shadowlearn.ui.progress.ProgressViewModel
 
 /**
@@ -94,6 +96,35 @@ fun ProgressScreen(onNavigate: (String) -> Unit = {}) {
                 MilestoneRow("EXTRACTION", "Document content extracted", s.milestones.hasExtraction)
                 MilestoneRow("QUIZ", "Quiz session completed", s.milestones.hasQuiz)
                 MilestoneRow("REVIEW", "Flashcard review recorded", s.milestones.hasReview)
+            }
+        }
+        if (s.scopeValid) {
+            item {
+                val now = remember { System.currentTimeMillis() }
+                SectionCard("Learning Signals") {
+                    if (s.learningSignals.isEmpty()) {
+                        Text(
+                            "No learning signals yet — nothing repeated.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    } else {
+                        s.learningSignals.forEach { signal ->
+                            Text(
+                                signal.homeLabel(),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (signal.status == WeaknessStatus.OBSERVED)
+                                    MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                signal.statusLine(now),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(4.dp))
+                        }
+                    }
+                }
             }
         }
         item {

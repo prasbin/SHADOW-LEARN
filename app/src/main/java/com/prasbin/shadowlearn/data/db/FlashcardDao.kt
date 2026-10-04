@@ -200,6 +200,24 @@ abstract class FlashcardDao {
 
     @Insert
     abstract suspend fun insertEvent(event: ReviewEvent): Long
+
+    /**
+     * AGAIN ratings with card source refs, semester-bounded (I1 evidence).
+     * The card join is LEFT: a deleted card keeps its events countable, but
+     * their source becomes unresolvable (contract: capped POSSIBLE).
+     */
+    @Query(
+        "SELECT e.id AS eventId, e.flashcardId AS cardId, " +
+            "c.sourceChunkId AS sourceChunkId, c.sourceLabel AS sourceLabel, " +
+            "e.reviewedAt AS reviewedAt " +
+            "FROM flashcard_review_events e " +
+            "JOIN flashcard_review_sessions rs ON rs.id = e.sessionId " +
+            "JOIN flashcard_decks d ON d.id = rs.deckId " +
+            "LEFT JOIN flashcards c ON c.id = e.flashcardId " +
+            "WHERE d.semesterId = :semesterId AND e.rating = 'AGAIN' " +
+            "ORDER BY e.reviewedAt DESC LIMIT :limit"
+    )
+    abstract suspend fun againEvents(semesterId: Long, limit: Int): List<AgainRow>
 }
 
 /** Chunk pool row for card generation (see [FlashcardDao.cardChunksOfSemester]). */
@@ -235,5 +253,14 @@ data class ReadySegmentRow(
 /** Review rating + time projection for the Phase 9 progression engine. */
 data class ReviewActivityRow(
     val rating: String,
+    val reviewedAt: Long
+)
+
+/** AGAIN rating with card source refs for I1 evidence (see [FlashcardDao.againEvents]). */
+data class AgainRow(
+    val eventId: Long,
+    val cardId: Long,
+    val sourceChunkId: Long?,
+    val sourceLabel: String?,
     val reviewedAt: Long
 )
