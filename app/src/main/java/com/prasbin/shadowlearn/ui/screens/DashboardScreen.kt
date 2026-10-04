@@ -54,6 +54,15 @@ fun DashboardScreen(onNavigate: (String) -> Unit = {}) {
     val s by vm.state.collectAsStateWithLifecycle()
     val go = { target: HomeTarget -> onNavigate(target.toRoute()) }
     var explanation: GroundedExplanation? by remember { mutableStateOf<GroundedExplanation?>(null) }
+    var explanationPractice: Long? by remember { mutableStateOf<Long?>(null) }
+    val openExplanation = { expl: GroundedExplanation, practiceFileId: Long? ->
+        explanation = expl
+        explanationPractice = practiceFileId
+    }
+    val closeExplanation = {
+        explanation = null
+        explanationPractice = null
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -190,7 +199,7 @@ fun DashboardScreen(onNavigate: (String) -> Unit = {}) {
                     recommendation.explanation?.let { expl ->
                         Spacer(Modifier.height(4.dp))
                         TextButton(
-                            onClick = { explanation = expl },
+                            onClick = { openExplanation(expl, recommendation.practiceFileId) },
                             modifier = Modifier.fillMaxWidth().height(48.dp)
                         ) { Text("EXPLAIN ›") }
                     }
@@ -280,9 +289,20 @@ fun DashboardScreen(onNavigate: (String) -> Unit = {}) {
                         }
                         area.explanation?.let { expl ->
                             TextButton(
-                                onClick = { explanation = expl },
+                                onClick = { openExplanation(expl, area.practiceFileId) },
                                 modifier = Modifier.fillMaxWidth().height(48.dp)
                             ) { Text("EXPLAIN ›") }
+                        }
+                        area.practiceFileId?.let { fileId ->
+                            TextButton(
+                                onClick = { onNavigate(Routes.practiceQuiz(fileId)) },
+                                modifier = Modifier.fillMaxWidth().height(48.dp)
+                            ) {
+                                Text(
+                                    if (area.status == WeaknessStatus.OBSERVED.name) "PRACTICE THIS ›"
+                                    else "PRACTICE ›"
+                                )
+                            }
                         }
                         area.sourceWeekId?.let { weekId ->
                             TextButton(
@@ -326,10 +346,12 @@ fun DashboardScreen(onNavigate: (String) -> Unit = {}) {
     explanation?.let { expl ->
         ExplanationDialog(
             explanation = expl,
-            onOpenSource = { weekId -> explanation = null; onNavigate(Routes.hierarchyWeek(weekId)) },
-            onOpenMaterial = { explanation = null; onNavigate(Routes.hierarchyRoot()) },
-            onOpenSearch = { explanation = null; onNavigate(Routes.SEARCH) },
-            onDismiss = { explanation = null }
+            onOpenSource = { weekId -> closeExplanation(); onNavigate(Routes.hierarchyWeek(weekId)) },
+            onOpenMaterial = { closeExplanation(); onNavigate(Routes.hierarchyRoot()) },
+            onOpenSearch = { closeExplanation(); onNavigate(Routes.SEARCH) },
+            onDismiss = { closeExplanation() },
+            practiceFileId = explanationPractice,
+            onPractice = { fileId -> closeExplanation(); onNavigate(Routes.practiceQuiz(fileId)) }
         )
     }
 }

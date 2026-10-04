@@ -164,7 +164,13 @@ data class WeaknessSignal(
     val newestAt: Long,
     val dangling: Boolean,
     /** Owning week for OPEN SOURCE routing; null when unresolvable. */
-    val weekId: Long? = null
+    val weekId: Long? = null,
+    /**
+     * Targeted practice availability: owning file exists AND yields at
+     * least one indexed chunk. Filled by EvidenceRepository (the engine
+     * itself never touches Room).
+     */
+    val practicable: Boolean = false
 ) {
     /** Scope crumb for display ("Week 2 · Artificial Intelligence" or null). */
     fun scopeCrumb(): String? {

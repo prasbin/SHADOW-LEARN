@@ -43,6 +43,11 @@ data class WeakArea(
     val status: String = WeaknessStatus.POSSIBLE.name,
     /** Owning week for OPEN SOURCE routing (else null = no action shown). */
     val sourceWeekId: Long? = null,
+    /**
+     * Owning file for targeted PRACTICE (else null = no action shown).
+     * Set only when the file exists with indexed chunks (I5 gate).
+     */
+    val practiceFileId: Long? = null,
     /** Grounded explanation when the source resolved (else null = no EXPLAIN). */
     val explanation: com.prasbin.shadowlearn.data.intelligence.GroundedExplanation? = null
 )
@@ -73,6 +78,11 @@ data class Recommendation(
     val sourceExcerpt: String? = null,
     /** Owning week for OPEN SOURCE routing (else null = no action shown). */
     val sourceWeekId: Long? = null,
+    /**
+     * Owning file for targeted PRACTICE (else null = no action shown).
+     * Set only when the file exists with indexed chunks (I5 gate).
+     */
+    val practiceFileId: Long? = null,
     /** Grounded explanation when the source resolved (else null = no EXPLAIN). */
     val explanation: com.prasbin.shadowlearn.data.intelligence.GroundedExplanation? = null
 )
@@ -239,11 +249,13 @@ class SystemHomeRepository(
             is com.prasbin.shadowlearn.data.intelligence.RetrievalResult.Retrieved -> recommendation.copy(
                 sourceFileName = signal.fileName,
                 sourceExcerpt = result.chunks.first().excerpt,
-                sourceWeekId = signal.weekId
+                sourceWeekId = signal.weekId,
+                practiceFileId = if (signal.practicable) signal.fileId else null
             )
             else -> recommendation.copy(
                 sourceFileName = signal.fileName,
-                sourceWeekId = signal.weekId
+                sourceWeekId = signal.weekId,
+                practiceFileId = if (signal.practicable) signal.fileId else null
             )
         }
         // I4: same shared explanation object the weak-area row carries.
@@ -267,6 +279,7 @@ class SystemHomeRepository(
                 target = HomeTarget.CARDS,
                 status = signal.status.name,
                 sourceWeekId = signal.weekId,
+                practiceFileId = if (signal.practicable) signal.fileId else null,
                 explanation = signal.fileId?.let { explanations[it] }
             )
         }

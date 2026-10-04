@@ -142,6 +142,88 @@ class QuizRepository(
     suspend fun indexedChunkCount(semesterId: Long): Int = quizDao.indexedChunkCount(semesterId)
 
     /**
+     * I5 targeted practice: plans + persists a quiz constrained to ONE
+     * academic file (the weakness source). Mirrors [launch] exactly except
+     * the chunk pool is file-filtered, so every generated question carries
+     * that file's provenance. Session size defaults to 5 and uses fewer
+     * valid questions when the file cannot supply that many (never filler,
+     * minimum 1). Cross-semester files are refused. Returns an explicit
+     * outcome — never a generic quiz fallback.
+     */
+    suspend fun planForWeakness(
+        semesterId: Long,
+        fileId: Long,
+        length: Int = TARGETED_DEFAULT_LENGTH,
+        seed: Long = Random.nextLong()
+    ): TargetedPracticeOutcome = withContext(dispatcher) {
+        if (!quizDao.fileExists(fileId)) {
+            return@withContext TargetedPracticeOutcome.Unavailable(
+                TargetedPracticeOutcome.Reason.NO_SOURCE
+            )
+        }
+        if (quizDao.fileSemester(fileId) != semesterId) {
+            return@withContext TargetedPracticeOutcome.Unavailable(
+                TargetedPracticeOutcome.Reason.NO_SOURCE
+            )
+        }
+        val pool = quizDao.chunksOfSemester(semesterId).filter { it.academicFileId == fileId }
+        if (pool.isEmpty()) {
+            return@withContext TargetedPracticeOutcome.Unavailable(
+                TargetedPracticeOutcome.Reason.SOURCE_NOT_INDEXED
+            )
+        }
+        val eligible = pool.mapNotNull { chunk ->
+            val cap = QuestionGenerator.capacity(chunk)
+            if (cap > 0) chunk.chunkId to cap else null
+        }
+        if (eligible.isEmpty()) {
+            return@withContext TargetedPracticeOutcome.Unavailable(
+                TargetedPracticeOutcome.Reason.SOURCE_NOT_INDEXED
+            )
+        }
+
+        val target = length.coerceIn(1, TARGETED_MAX_LENGTH)
+        val ctx = QuestionGenerator.context(pool)
+        val recent = quizDao.recentCompletedChunkIds().take(RECENT_WINDOW_CHUNKS).toSet()
+        val assignments = QuizPlanner.plan(eligible, target, recent, Random(seed))
+        if (assignments.isEmpty()) {
+            return@withContext TargetedPracticeOutcome.Unavailable(
+                TargetedPracticeOutcome.Reason.INSUFFICIENT
+            )
+        }
+
+        val byId = pool.associateBy { it.chunkId }
+        val rng = Random(seed)
+        val generated = mutableListOf<GeneratedQuestion>()
+        for (a in assignments) {
+            val chunk = byId[a.chunkId] ?: continue
+            generated += QuestionGenerator.build(chunk, ctx, rng).take(a.questionCount)
+        }
+        if (generated.isEmpty()) {
+            return@withContext TargetedPracticeOutcome.Unavailable(
+                TargetedPracticeOutcome.Reason.INSUFFICIENT
+            )
+        }
+
+        val session = QuizSession(
+            semesterId = semesterId,
+            seed = seed,
+            totalQuestions = generated.size
+        )
+        val entities = generated.mapIndexed { i, q -> q.toEntity(sessionId = 0, position = i) }
+        val (sessionId, ids) = quizDao.insertRun(session, entities)
+        TargetedPracticeOutcome.Ready(
+            quiz = ActiveQuiz(
+                sessionId = sessionId,
+                semesterId = semesterId,
+                seed = seed,
+                questions = ids.mapIndexed { i, id -> generated[i].toActive(id, i) }
+            ),
+            fileName = pool.first().fileName
+        )
+    }
+
+    /**
      * Consecutive-day streak ending today (or yesterday when today has no
      * session yet). Delegates to the shared Phase 9 progression helper so
      * there is exactly one streak implementation.
@@ -213,5 +295,31 @@ class QuizRepository(
         private val TRUE_FALSE_OPTIONS = listOf("true", "false")
         /** Ring capacity for "recent chunk ids" (≈ 3 sessions of 10). */
         private const val RECENT_WINDOW_CHUNKS = 30
+        /** I5 default targeted session size (fewer when the file supplies fewer). */
+        const val TARGETED_DEFAULT_LENGTH = 5
+        /** I5 targeted session cap — smallest useful session, never enormous. */
+        const val TARGETED_MAX_LENGTH = 5
     }
+}
+
+/**
+ * I5 targeted-practice outcome. Only two shapes exist: a ready session or
+ * an explicit honest failure — no scores, no confidence, no mastery model.
+ */
+sealed class TargetedPracticeOutcome {
+    /** Honest failure reasons — surfaced verbatim, never a generic fallback. */
+    enum class Reason {
+        /** File row gone or outside the current semester. */
+        NO_SOURCE,
+        /** File exists but yields zero question-ready chunks. */
+        SOURCE_NOT_INDEXED,
+        /** Defensive: eligible pool but generation produced nothing. */
+        INSUFFICIENT
+    }
+
+    /** Session persisted through the normal quiz transaction; play it. */
+    data class Ready(val quiz: ActiveQuiz, val fileName: String) : TargetedPracticeOutcome()
+
+    /** Targeted practice cannot be built; the UI must show this honestly. */
+    data class Unavailable(val reason: Reason) : TargetedPracticeOutcome()
 }

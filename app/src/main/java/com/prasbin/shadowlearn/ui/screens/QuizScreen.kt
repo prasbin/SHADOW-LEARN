@@ -56,10 +56,19 @@ import java.util.Locale
  * Fully choice-based (no text input), scoped to the DataStore semester.
  */
 @Composable
-fun QuizScreen(onNavigate: (String) -> Unit = {}) {
+fun QuizScreen(onNavigate: (String) -> Unit = {}, targetFileId: Long? = null) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val vm: QuizViewModel = viewModel(factory = QuizViewModel.factory(context))
     val s by vm.state.collectAsStateWithLifecycle()
+
+    // I5 targeted entry: build the weakness-scoped session on arrival.
+    // Normal tab entry passes null and behaves exactly as before.
+    // Keyed on semester too: a late scope load still triggers the build.
+    androidx.compose.runtime.LaunchedEffect(targetFileId, s.semesterId) {
+        if (targetFileId != null && s.kind != QuizUiKind.QUESTION && s.kind != QuizUiKind.RESULTS) {
+            vm.startTargetedPractice(targetFileId)
+        }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -85,6 +94,16 @@ fun QuizScreen(onNavigate: (String) -> Unit = {}) {
         }
 
         item { ScopeIndicator(s) }
+
+        s.practiceFileName?.let { name ->
+            item {
+                Text(
+                    "TARGETED PRACTICE · $name",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.tertiary
+                )
+            }
+        }
 
         item {
             GroupSwitcher(

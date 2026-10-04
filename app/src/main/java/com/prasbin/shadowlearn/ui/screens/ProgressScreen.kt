@@ -46,6 +46,15 @@ fun ProgressScreen(onNavigate: (String) -> Unit = {}) {
     val vm: ProgressViewModel = viewModel(factory = ProgressViewModel.factory(context))
     val s by vm.state.collectAsStateWithLifecycle()
     var explanation: GroundedExplanation? by remember { mutableStateOf<GroundedExplanation?>(null) }
+    var explanationPractice: Long? by remember { mutableStateOf<Long?>(null) }
+    val openExplanation = { expl: GroundedExplanation, practiceFileId: Long? ->
+        explanation = expl
+        explanationPractice = practiceFileId
+    }
+    val closeExplanation = {
+        explanation = null
+        explanationPractice = null
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -129,10 +138,22 @@ fun ProgressScreen(onNavigate: (String) -> Unit = {}) {
                             )
                             signal.fileId?.let { fid ->
                                 s.signalExplanations[fid]?.let { expl ->
+                                    val practice = if (signal.practicable) fid else null
                                     TextButton(
-                                        onClick = { explanation = expl },
+                                        onClick = { openExplanation(expl, practice) },
                                         modifier = Modifier.fillMaxWidth().height(48.dp)
                                     ) { Text("EXPLAIN ›") }
+                                }
+                            }
+                            if (signal.practicable && signal.fileId != null) {
+                                TextButton(
+                                    onClick = { onNavigate(Routes.practiceQuiz(signal.fileId)) },
+                                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                                ) {
+                                    Text(
+                                        if (signal.status == WeaknessStatus.OBSERVED) "PRACTICE THIS ›"
+                                        else "PRACTICE ›"
+                                    )
                                 }
                             }
                             signal.weekId?.let { weekId ->
@@ -196,10 +217,12 @@ fun ProgressScreen(onNavigate: (String) -> Unit = {}) {
     explanation?.let { expl ->
         ExplanationDialog(
             explanation = expl,
-            onOpenSource = { weekId -> explanation = null; onNavigate(Routes.hierarchyWeek(weekId)) },
-            onOpenMaterial = { explanation = null; onNavigate(Routes.hierarchyRoot()) },
-            onOpenSearch = { explanation = null; onNavigate(Routes.SEARCH) },
-            onDismiss = { explanation = null }
+            onOpenSource = { weekId -> closeExplanation(); onNavigate(Routes.hierarchyWeek(weekId)) },
+            onOpenMaterial = { closeExplanation(); onNavigate(Routes.hierarchyRoot()) },
+            onOpenSearch = { closeExplanation(); onNavigate(Routes.SEARCH) },
+            onDismiss = { closeExplanation() },
+            practiceFileId = explanationPractice,
+            onPractice = { fileId -> closeExplanation(); onNavigate(Routes.practiceQuiz(fileId)) }
         )
     }
 }

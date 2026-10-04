@@ -148,6 +148,15 @@ fun AppNav() {
             }
             composable(Routes.SEARCH) { SearchScreen(onNavigate = go) }
             composable(Routes.QUIZ) { QuizScreen(onNavigate = go) }
+            composable(
+                route = "${Routes.QUIZ_PRACTICE}/{fileId}",
+                arguments = listOf(navArgument("fileId") { type = NavType.LongType })
+            ) { entry ->
+                QuizScreen(
+                    onNavigate = go,
+                    targetFileId = entry.arguments?.getLong("fileId")
+                )
+            }
             composable(Routes.LISTENER) { ListenerScreen(onNavigate = go) }
             composable(Routes.FLASHCARDS) { FlashcardsScreen(onNavigate = go) }
             composable(Routes.PROGRESS) { ProgressScreen(onNavigate = go) }

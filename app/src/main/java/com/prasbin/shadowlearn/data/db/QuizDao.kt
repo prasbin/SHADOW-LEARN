@@ -144,6 +144,21 @@ abstract class QuizDao {
     )
     abstract suspend fun indexedChunkCount(semesterId: Long): Int
 
+    // ---- I5 targeted practice (read-only file-scope checks) ----------------
+
+    /** Whether the academic file row still exists. */
+    @Query("SELECT EXISTS(SELECT 1 FROM academic_files WHERE id = :fileId)")
+    abstract suspend fun fileExists(fileId: Long): Boolean
+
+    /** Owning semester of a file via hierarchy walk; null when unresolvable. */
+    @Query(
+        "SELECT m.semesterId FROM academic_files f " +
+            "JOIN weeks w ON w.id = f.weekId " +
+            "JOIN modules m ON m.id = w.moduleId " +
+            "WHERE f.id = :fileId LIMIT 1"
+    )
+    abstract suspend fun fileSemester(fileId: Long): Long?
+
     // ---- I1 evidence (read-only, bounded, semester-scoped joins) ----------
 
     /**

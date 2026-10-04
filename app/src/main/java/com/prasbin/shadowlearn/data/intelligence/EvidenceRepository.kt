@@ -67,7 +67,14 @@ class EvidenceRepository(
             val fileIds = (mistakes.mapNotNull { it.academicFileId } +
                 agains.mapNotNull { it.fileId }).toSet()
             val scopes = fileIds.associate { id -> "file:$id" to scopeForDirect(id) }
-            WeaknessEngine.evaluate(mistakes, corrects, agains, scopes, now)
+            WeaknessEngine.evaluate(mistakes, corrects, agains, scopes, now).map { signal ->
+                // I5: targeted practice availability — owning file exists AND
+                // yields indexed chunks. One bounded COUNT per signal file.
+                val practicable = signal.fileId?.let { id ->
+                    runCatching { extractionDao.chunkCountForFile(id) > 0 }.getOrDefault(false)
+                } ?: false
+                signal.copy(practicable = practicable)
+            }
         }
     private suspend fun scopeForDirect(fileId: Long): SourceScope? {
         val file = academicDao.file(fileId) ?: return null

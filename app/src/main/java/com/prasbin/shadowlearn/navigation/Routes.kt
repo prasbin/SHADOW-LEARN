@@ -13,6 +13,7 @@ object Routes {
     const val ACADEMIC = "academic"
     const val SEARCH = "search"
     const val QUIZ = "quiz"
+    const val QUIZ_PRACTICE = "quiz/practice"
     const val LISTENER = "listener"
     const val FLASHCARDS = "flashcards"
     const val PROGRESS = "progress"
@@ -28,6 +29,9 @@ object Routes {
     fun hierarchySemester(semesterId: Long): String = "$HIERARCHY_SEMESTER/$semesterId"
     fun hierarchyModule(moduleId: Long): String = "$HIERARCHY_MODULE/$moduleId"
     fun hierarchyWeek(weekId: Long): String = "$HIERARCHY_WEEK/$weekId"
+
+    /** I5 targeted-practice entry for one weak source file. */
+    fun practiceQuiz(fileId: Long): String = "$QUIZ_PRACTICE/$fileId"
 }
 
 /** Closest hierarchy destination for a file's week; null when unresolvable. */
@@ -57,7 +61,8 @@ fun tabForRoute(route: String?): NavTab? {
     return when {
         route == Routes.DASHBOARD -> NavTab.HOME
         route == Routes.ACADEMIC || route.startsWith(Routes.HIERARCHY) -> NavTab.ACADEMIC
-        route == Routes.QUIZ || route == Routes.FLASHCARDS -> NavTab.STUDY
+        route == Routes.QUIZ || route == Routes.FLASHCARDS ||
+            route.startsWith(Routes.QUIZ + "/") -> NavTab.STUDY
         route == Routes.LISTENER -> NavTab.LISTEN
         route == Routes.PROGRESS || route == Routes.SETTINGS -> NavTab.SYSTEM
         else -> null

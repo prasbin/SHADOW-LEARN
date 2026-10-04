@@ -38,7 +38,9 @@ data class QuizUiState(
     val current: Int = 0,
     val selectedLength: Int = QuizViewModel.DEFAULT_LENGTH,
     val results: QuizResults? = null,
-    val error: String? = null
+    val error: String? = null,
+    /** Source file name when this session is targeted weakness practice. */
+    val practiceFileName: String? = null
 ) {
     val feedback: QuizFeedback?
         get() {
@@ -138,6 +140,47 @@ class QuizViewModel(context: Context) : ViewModel() {
                 }
                 .onFailure { e ->
                     _state.updateState { it.copy(kind = QuizUiKind.ERROR, error = e.message ?: "Could not generate a quiz.") }
+                }
+        }
+    }
+
+    /**
+     * I5 targeted practice entry: builds a quiz constrained to one weak
+     * source file through the normal quiz transaction. The QUESTION /
+     * RESULTS / XP flow downstream is identical to a normal quiz.
+     */
+    fun startTargetedPractice(fileId: Long) {
+        val semesterId = _state.value.semesterId ?: return
+        viewModelScope.launch {
+            runCatching { repo.planForWeakness(semesterId, fileId) }
+                .onSuccess { outcome ->
+                    _state.updateState {
+                        when (outcome) {
+                            is com.prasbin.shadowlearn.data.quiz.TargetedPracticeOutcome.Ready ->
+                                it.copy(
+                                    kind = QuizUiKind.QUESTION,
+                                    quiz = outcome.quiz,
+                                    current = outcome.quiz.currentIndex,
+                                    results = null,
+                                    practiceFileName = outcome.fileName
+                                )
+                            is com.prasbin.shadowlearn.data.quiz.TargetedPracticeOutcome.Unavailable ->
+                                it.copy(
+                                    kind = QuizUiKind.ERROR,
+                                    error = when (outcome.reason) {
+                                        com.prasbin.shadowlearn.data.quiz.TargetedPracticeOutcome.Reason.NO_SOURCE ->
+                                            "Targeted practice unavailable: this material is no longer available."
+                                        com.prasbin.shadowlearn.data.quiz.TargetedPracticeOutcome.Reason.SOURCE_NOT_INDEXED ->
+                                            "Targeted practice unavailable: this material has not been indexed enough to safely build source-grounded practice."
+                                        com.prasbin.shadowlearn.data.quiz.TargetedPracticeOutcome.Reason.INSUFFICIENT ->
+                                            "Targeted practice unavailable: not enough valid questions could be built from this source."
+                                    }
+                                )
+                        }
+                    }
+                }
+                .onFailure { e ->
+                    _state.updateState { it.copy(kind = QuizUiKind.ERROR, error = e.message ?: "Could not build targeted practice.") }
                 }
         }
     }

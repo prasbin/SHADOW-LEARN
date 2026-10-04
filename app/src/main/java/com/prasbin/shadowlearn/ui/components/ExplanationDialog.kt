@@ -33,7 +33,9 @@ fun ExplanationDialog(
     onOpenSource: (Long) -> Unit,
     onOpenMaterial: () -> Unit,
     onOpenSearch: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    practiceFileId: Long? = null,
+    onPractice: (Long) -> Unit = {}
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -47,7 +49,9 @@ fun ExplanationDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 when (explanation.status) {
-                    ExplanationStatus.EXPLAINED -> ExplainedBody(explanation, onOpenSource)
+                    ExplanationStatus.EXPLAINED -> ExplainedBody(
+                        explanation, onOpenSource, practiceFileId, onPractice
+                    )
                     ExplanationStatus.INSUFFICIENT_EVIDENCE -> {
                         Text(
                             "INSUFFICIENT ACADEMIC EVIDENCE",
@@ -86,7 +90,9 @@ fun ExplanationDialog(
 @Composable
 private fun ExplainedBody(
     explanation: GroundedExplanation,
-    onOpenSource: (Long) -> Unit
+    onOpenSource: (Long) -> Unit,
+    practiceFileId: Long?,
+    onPractice: (Long) -> Unit
 ) {
     Text(
         "GENERATED FROM YOUR ACADEMIC MATERIAL",
@@ -99,6 +105,13 @@ private fun ExplainedBody(
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
+    practiceFileId?.let { fileId ->
+        Spacer(Modifier.height(4.dp))
+        Button(
+            onClick = { onPractice(fileId) },
+            modifier = Modifier.fillMaxWidth().height(48.dp)
+        ) { Text("PRACTICE THIS MATERIAL ›") }
+    }
     Text(
         "BASED ON YOUR MATERIAL",
         style = MaterialTheme.typography.labelSmall,

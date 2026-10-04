@@ -169,6 +169,12 @@ no secrets in the repo, no keystores/passwords committed.
   ExplanationDialog on Home weak areas/recommendation and Status signals;
   distinct failure states incl. INSUFFICIENT_EVIDENCE; no AI/cloud/viewer;
   466/466 unit tests; verified on Redmi Note 14 5G with screenshots.
+- I5 weakness-driven practice: additive QuizRepository.planForWeakness
+  (file-constrained pool, same transaction/scoring/XP), PRACTICE THIS /
+  PRACTICE / GATHER-equivalent buttons on Home/Status/dialog gated by
+  indexed-chunk availability, quiz/practice/{fileId} route in STUDY group;
+  no mastery model, no filler, no cross-semester leakage; 479/479 unit
+  tests; validated on Redmi Note 14 5G + CE_Test.
 - Intelligence Layer governing requirement recorded in
   docs/INTELLIGENCE_LAYER.md (DESIGN ONLY; I1 Evidence Contract pending
   review before any implementation).
