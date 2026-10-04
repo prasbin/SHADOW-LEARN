@@ -13,6 +13,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -160,9 +161,32 @@ fun DashboardScreen(onNavigate: (String) -> Unit = {}) {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    recommendation.sourceFileName?.let { name ->
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "SOURCE",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(name, style = MaterialTheme.typography.bodyMedium)
+                        recommendation.sourceExcerpt?.let { excerpt ->
+                            Text(
+                                excerpt,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                     Spacer(Modifier.height(4.dp))
                     Button(onClick = { go(recommendation.target) }, modifier = Modifier.fillMaxWidth()) {
                         Text("Do it")
+                    }
+                    recommendation.sourceWeekId?.let { weekId ->
+                        Spacer(Modifier.height(4.dp))
+                        TextButton(
+                            onClick = { onNavigate(Routes.hierarchyWeek(weekId)) },
+                            modifier = Modifier.fillMaxWidth().height(48.dp)
+                        ) { Text("OPEN SOURCE ›") }
                     }
                 }
             }
@@ -240,6 +264,12 @@ fun DashboardScreen(onNavigate: (String) -> Unit = {}) {
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                        }
+                        area.sourceWeekId?.let { weekId ->
+                            TextButton(
+                                onClick = { onNavigate(Routes.hierarchyWeek(weekId)) },
+                                modifier = Modifier.fillMaxWidth().height(48.dp)
+                            ) { Text("OPEN SOURCE ›") }
                         }
                     }
                     Text(

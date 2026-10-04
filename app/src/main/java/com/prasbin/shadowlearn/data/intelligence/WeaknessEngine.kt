@@ -131,7 +131,8 @@ object WeaknessEngine {
                     againCount = groupAgains.size,
                     recentCorrects = recentCorrects,
                     newestAt = if (newest == Long.MIN_VALUE) now else newest,
-                    dangling = dangling
+                    dangling = dangling,
+                    weekId = scope?.weekId
                 )
             )
         }
@@ -161,7 +162,9 @@ data class WeaknessSignal(
     val againCount: Int,
     val recentCorrects: Int,
     val newestAt: Long,
-    val dangling: Boolean
+    val dangling: Boolean,
+    /** Owning week for OPEN SOURCE routing; null when unresolvable. */
+    val weekId: Long? = null
 ) {
     /** Scope crumb for display ("Week 2 · Artificial Intelligence" or null). */
     fun scopeCrumb(): String? {

@@ -19,7 +19,12 @@ import com.prasbin.shadowlearn.data.db.Semester
 import com.prasbin.shadowlearn.data.db.ShadowLearnDatabase
 import com.prasbin.shadowlearn.data.db.Week
 import com.prasbin.shadowlearn.data.intelligence.EvidenceRepository
+import com.prasbin.shadowlearn.data.intelligence.GroundedRetrievalRepository
 import com.prasbin.shadowlearn.data.intelligence.RecommendationKind
+import com.prasbin.shadowlearn.data.search.FtsIndex
+import com.prasbin.shadowlearn.data.search.RoomBackedSqlExecutor
+import com.prasbin.shadowlearn.data.search.SearchRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -57,6 +62,15 @@ class SystemHomeRepositoryTest {
             db.flashcardDao(), db.listenerDao(),
             EvidenceRepository(
                 db.academicDao(), db.extractionDao(), db.quizDao(), db.flashcardDao()
+            ),
+            GroundedRetrievalRepository(
+                db.academicDao(), db.extractionDao(),
+                SearchRepository(
+                    db.searchDao(),
+                    FtsIndex(RoomBackedSqlExecutor(db.openHelper.writableDatabase)),
+                    Dispatchers.Unconfined
+                ),
+                Dispatchers.Unconfined
             )
         )
     }
@@ -266,5 +280,32 @@ class SystemHomeRepositoryTest {
             snap.recommendation.kind != RecommendationKind.WEAKNESS_OBSERVED &&
                 snap.recommendation.kind != RecommendationKind.WEAKNESS_POSSIBLE
         )
+    }
+
+    @Test
+    fun observedWeakness_recommendationIsGrounded() = runBlocking {
+        seedScope()
+        seedMistakesOnDays(listOf(9, 5, 2))
+        val fileId = db.extractionDao().filesOfSemester(semId).first().id
+        db.extractionDao().insertChunks(
+            listOf(
+                com.prasbin.shadowlearn.data.db.DocumentChunk(
+                    academicFileId = fileId, chunkIndex = 0, pageNumber = 2,
+                    text = "Supervised learning uses labelled data.", charCount = 39
+                )
+            )
+        )
+        val weekId = db.academicDao()
+            .getWeeks(db.academicDao().getModules(semId).first().id).first().id
+
+        val snap = repo.snapshot(semId, now)
+
+        assertEquals(RecommendationKind.WEAKNESS_OBSERVED, snap.recommendation.kind)
+        assertEquals("notes.pdf", snap.recommendation.sourceFileName)
+        assertEquals("Supervised learning uses labelled data.", snap.recommendation.sourceExcerpt)
+        assertEquals(weekId, snap.recommendation.sourceWeekId)
+        // T14: Home rows share the identical underlying source result.
+        val area = snap.weakAreas.first { it.label == "notes.pdf" }
+        assertEquals(snap.recommendation.sourceWeekId, area.sourceWeekId)
     }
 }

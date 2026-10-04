@@ -13,6 +13,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -121,6 +122,12 @@ fun ProgressScreen(onNavigate: (String) -> Unit = {}) {
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            signal.weekId?.let { weekId ->
+                                TextButton(
+                                    onClick = { onNavigate(Routes.hierarchyWeek(weekId)) },
+                                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                                ) { Text("OPEN SOURCE ›") }
+                            }
                             Spacer(Modifier.height(4.dp))
                         }
                     }

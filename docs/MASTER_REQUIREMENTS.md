@@ -156,6 +156,14 @@ no secrets in the repo, no keystores/passwords committed.
   scores/concepts/AI), Home Weak Areas upgrade with status tint, Status
   Learning Signals (same objects); no tables/migrations; 426/426 unit
   tests; verified on Redmi Note 14 5G with screenshots.
+- I2 grounded recommendations: pure RecommendationEngine (due → observed
+  → resume → possible → transcripts → material → setup), single shared
+  result for Home; 443/443 unit tests; verified on CE_Test via dumps.
+- I3 grounded retrieval: exact-chunk → exact-file → scoped-FTS layer with
+  distinct NO_SOURCE/SOURCE_NOT_INDEXED/NO_MATCH states; verbatim excerpts
+  with provenance; OPEN SOURCE on Home recommendation/weak areas + Status
+  signals via existing hierarchy routes; no viewer/embeddings/AI;
+  455/455 unit tests; verified on Redmi Note 14 5G with screenshots.
 - Intelligence Layer governing requirement recorded in
   docs/INTELLIGENCE_LAYER.md (DESIGN ONLY; I1 Evidence Contract pending
   review before any implementation).

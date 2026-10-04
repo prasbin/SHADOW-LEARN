@@ -40,7 +40,9 @@ data class WeakArea(
     val detail: String,
     val target: HomeTarget,
     /** I1 signal status driving the tint: OBSERVED / IMPROVING / POSSIBLE. */
-    val status: String = WeaknessStatus.POSSIBLE.name
+    val status: String = WeaknessStatus.POSSIBLE.name,
+    /** Owning week for OPEN SOURCE routing (else null = no action shown). */
+    val sourceWeekId: Long? = null
 )
 
 /** One human-readable activity feed row. */
@@ -62,7 +64,13 @@ data class Recommendation(
     val text: String,
     val evidence: String,
     val target: HomeTarget,
-    val kind: com.prasbin.shadowlearn.data.intelligence.RecommendationKind
+    val kind: com.prasbin.shadowlearn.data.intelligence.RecommendationKind,
+    /** Grounded source file name for weakness recommendations (else null). */
+    val sourceFileName: String? = null,
+    /** Verbatim indexed excerpt backing the recommendation (else null). */
+    val sourceExcerpt: String? = null,
+    /** Owning week for OPEN SOURCE routing (else null = no action shown). */
+    val sourceWeekId: Long? = null
 )
 
 /**
@@ -80,6 +88,7 @@ class SystemHomeRepository(
     private val flashcardDao: FlashcardDao,
     private val listenerDao: ListenerDao,
     private val evidence: EvidenceRepository,
+    private val retrieval: com.prasbin.shadowlearn.data.intelligence.GroundedRetrievalRepository,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
 
@@ -184,8 +193,48 @@ class SystemHomeRepository(
                     hasMaterial = extractionDao.filesOfSemester(semesterId).isNotEmpty()
                 )
             )
-            HomeSnapshot(objectives, weakAreas, activity, focus, recommendation)
+            // I3: ground weakness recommendations with source + excerpt.
+            val grounded = groundRecommendation(recommendation, signals, semesterId)
+            HomeSnapshot(objectives, weakAreas, activity, focus, grounded)
         }
+
+    /**
+     * I3 grounding: for weakness recommendations, attach the source file,
+     * one verbatim indexed excerpt when available, and the owning week for
+     * OPEN SOURCE routing. Unresolvable sources keep the snapshot name
+     * with no excerpt and no route (honest unavailable, never a dead end).
+     */
+    private suspend fun groundRecommendation(
+        recommendation: Recommendation,
+        signals: List<com.prasbin.shadowlearn.data.intelligence.WeaknessSignal>,
+        semesterId: Long
+    ): Recommendation {
+        val wanted = when (recommendation.kind) {
+            com.prasbin.shadowlearn.data.intelligence.RecommendationKind.WEAKNESS_OBSERVED ->
+                com.prasbin.shadowlearn.data.intelligence.WeaknessStatus.OBSERVED
+            com.prasbin.shadowlearn.data.intelligence.RecommendationKind.WEAKNESS_POSSIBLE ->
+                com.prasbin.shadowlearn.data.intelligence.WeaknessStatus.POSSIBLE
+            else -> return recommendation
+        }
+        val signal = signals.firstOrNull { it.status == wanted } ?: return recommendation
+        val fileId = signal.fileId ?: return recommendation.copy(sourceFileName = signal.fileName)
+        val result = retrieval.retrieve(
+            com.prasbin.shadowlearn.data.intelligence.RetrievalRequest(
+                semesterId = semesterId, fileId = fileId, maxChunks = 1
+            )
+        )
+        return when (result) {
+            is com.prasbin.shadowlearn.data.intelligence.RetrievalResult.Retrieved -> recommendation.copy(
+                sourceFileName = signal.fileName,
+                sourceExcerpt = result.chunks.first().excerpt,
+                sourceWeekId = signal.weekId
+            )
+            else -> recommendation.copy(
+                sourceFileName = signal.fileName,
+                sourceWeekId = signal.weekId
+            )
+        }
+    }
 
     /**
      * I1 weak areas: shared engine output mapped to Home rows (max 4).
@@ -201,7 +250,8 @@ class SystemHomeRepository(
                 label = signal.homeLabel(),
                 detail = "${signal.status.name} — ${signal.homeDetail(now)}",
                 target = HomeTarget.CARDS,
-                status = signal.status.name
+                status = signal.status.name,
+                sourceWeekId = signal.weekId
             )
         }
 

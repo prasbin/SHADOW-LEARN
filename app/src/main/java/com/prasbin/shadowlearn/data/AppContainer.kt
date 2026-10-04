@@ -166,6 +166,19 @@ object AppContainer {
         }
 
     @Volatile
+    private var retrievalRepo: com.prasbin.shadowlearn.data.intelligence.GroundedRetrievalRepository? = null
+
+    /** I3 grounded retrieval — single shared instance (existing FTS/chunks). */
+    fun retrieval(context: Context): com.prasbin.shadowlearn.data.intelligence.GroundedRetrievalRepository =
+        retrievalRepo ?: synchronized(this) {
+            retrievalRepo ?: com.prasbin.shadowlearn.data.intelligence.GroundedRetrievalRepository(
+                academicDao = database(context).academicDao(),
+                extractionDao = database(context).extractionDao(),
+                search = search(context)
+            ).also { retrievalRepo = it }
+        }
+
+    @Volatile
     private var homeRepo: com.prasbin.shadowlearn.data.home.SystemHomeRepository? = null
 
     /** System Home aggregation: objectives, weak areas, activity, focus, recommendation. */
@@ -177,7 +190,8 @@ object AppContainer {
                 quizDao = database(context).quizDao(),
                 flashcardDao = database(context).flashcardDao(),
                 listenerDao = database(context).listenerDao(),
-                evidence = evidence(context)
+                evidence = evidence(context),
+                retrieval = retrieval(context)
             ).also { homeRepo = it }
         }
 
