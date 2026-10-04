@@ -179,6 +179,19 @@ object AppContainer {
         }
 
     @Volatile
+    private var relationshipsRepo: com.prasbin.shadowlearn.data.intelligence.RelationshipRepository? = null
+
+    /** I6 cross-material relationships — single shared instance, on demand only. */
+    fun relationships(context: Context): com.prasbin.shadowlearn.data.intelligence.RelationshipRepository =
+        relationshipsRepo ?: synchronized(this) {
+            relationshipsRepo ?: com.prasbin.shadowlearn.data.intelligence.RelationshipRepository(
+                academicDao = database(context).academicDao(),
+                extractionDao = database(context).extractionDao(),
+                search = search(context)
+            ).also { relationshipsRepo = it }
+        }
+
+    @Volatile
     private var homeRepo: com.prasbin.shadowlearn.data.home.SystemHomeRepository? = null
 
     /** System Home aggregation: objectives, weak areas, activity, focus, recommendation. */

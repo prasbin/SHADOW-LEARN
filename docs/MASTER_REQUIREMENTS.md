@@ -175,6 +175,12 @@ no secrets in the repo, no keystores/passwords committed.
   indexed-chunk availability, quiz/practice/{fileId} route in STUDY group;
   no mastery model, no filler, no cross-semester leakage; 479/479 unit
   tests; validated on Redmi Note 14 5G + CE_Test.
+- I6 backend (engine + repository, no UI yet): pure CrossMaterialEngine
+  (term extraction, SAME_WEEK/SAME_MODULE/SHARED_CONTENT ranking) +
+  RelationshipRepository.relatedFor (existing FTS/chunks/hierarchy only,
+  triple-enforced semester isolation, max 3, deduped); no tables, no new
+  DAO methods, no AI/network; 498/498 unit tests; regression-smoked on
+  CE_Test.
 - Intelligence Layer governing requirement recorded in
   docs/INTELLIGENCE_LAYER.md (DESIGN ONLY; I1 Evidence Contract pending
   review before any implementation).
