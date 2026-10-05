@@ -197,6 +197,13 @@ fun ListenerScreen(
                     }
                 }
                 item { SessionSummaryCard(s) }
+                item {
+                    s.understanding?.let { UnderstandingCard(
+                        understanding = it,
+                        onOpenWeek = { weekId -> onNavigate(Routes.hierarchyWeek(weekId)) },
+                        onPractice = { fileId -> onNavigate(Routes.practiceQuiz(fileId)) }
+                    ) }
+                }
                 item { TranscriptionCard(s, onTranscribe = { vm.transcribeCurrentSession() }) }
                 if (s.segments.any { it.transcriptStatus == ListenerSegment.STATUS_READY }) {
                     item {
@@ -399,9 +406,91 @@ private fun SessionSummaryCard(s: ListenerUiState) {
         if (path != null) {
             Text(
                 path.substringAfterLast('/'),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+/**
+ * I7 derived session understanding: evidence counts, verbatim key points,
+ * and indexed sources the transcript verifiably connects to. No scores,
+ * no summaries invented beyond transcript text, no new destinations —
+ * every action reuses an existing route.
+ */
+@Composable
+private fun UnderstandingCard(
+    understanding: com.prasbin.shadowlearn.data.listener.SessionUnderstanding,
+    onOpenWeek: (Long) -> Unit,
+    onPractice: (Long) -> Unit
+) {
+    SectionCard("Listener Intelligence") {
+        MonoText(
+            "UNDERSTANDING  ${understanding.academicCount} ACADEMIC · " +
+                "${understanding.transcriptOnlyCount} TRANSCRIPT · " +
+                "${understanding.fillerCount} FILLER · " +
+                "${understanding.unknownCount} UNKNOWN"
+        )
+        if (understanding.readyCount == 0) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "No transcribed academic content yet — transcribe the session to enable understanding.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            if (understanding.keyPoints.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "KEY POINTS",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                understanding.keyPoints.forEach { point ->
+                    Text(
+                        "“${point.text}”",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "SEGMENT ${point.position + 1}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(4.dp))
+                }
+            }
+            if (understanding.groundedSources.isNotEmpty()) {
+                Text(
+                    "CONNECTED MATERIAL",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                understanding.groundedSources.forEach { source ->
+                    Text(source.fileName, style = MaterialTheme.typography.titleSmall)
+                    if (source.terms.isNotEmpty()) {
+                        Text(
+                            "Shared terms: ${source.terms.joinToString(", ")}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    source.weekId?.let { weekId ->
+                        Spacer(Modifier.height(4.dp))
+                        TextButton(
+                            onClick = { onOpenWeek(weekId) },
+                            modifier = Modifier.fillMaxWidth().height(48.dp)
+                        ) { Text("OPEN SOURCE ›") }
+                    }
+                }
+            }
+            understanding.practiceFileId?.let { fileId ->
+                Spacer(Modifier.height(4.dp))
+                Button(
+                    onClick = { onPractice(fileId) },
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                ) { Text("PRACTICE ›") }
+            }
         }
     }
 }

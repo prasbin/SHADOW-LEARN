@@ -74,6 +74,8 @@ data class ListenerUiState(
     val transcription: TranscriptionUi = TranscriptionUi.IDLE,
     /** Human summary of the last transcription pass (counts / reason). */
     val transcriptionMessage: String? = null,
+    /** I7 derived session understanding (null until a session is reviewed). */
+    val understanding: com.prasbin.shadowlearn.data.listener.SessionUnderstanding? = null,
     val error: String? = null
 )
 
@@ -90,6 +92,7 @@ class ListenerViewModel(context: Context) : ViewModel() {
     private val settings = AppContainer.settings(app)
     private val repo: ListenerRepository = AppContainer.listener(app)
     private val transcriptionRepo = AppContainer.transcription(app)
+    private val intelligence = AppContainer.listenerIntelligence(app)
 
     private val _state = MutableStateFlow(ListenerUiState())
     val state: StateFlow<ListenerUiState> = _state.asStateFlow()
@@ -133,6 +136,7 @@ class ListenerViewModel(context: Context) : ViewModel() {
         } else {
             base.copy(kind = ListenerUiKind.IDLE, sessionCount = count)
         }
+        refreshUnderstanding()
     }
 
     fun hasPermission(): Boolean =
@@ -260,6 +264,7 @@ class ListenerViewModel(context: Context) : ViewModel() {
                 segments = segs,
                 segmentCount = segs.size
             )
+            refreshUnderstanding()
         }
     }
 
@@ -297,6 +302,7 @@ class ListenerViewModel(context: Context) : ViewModel() {
                 reviewStatus = null,
                 reviewAudioPath = null,
                 selectedSegment = null,
+                understanding = null,
                 elapsedMs = 0,
                 amplitude = 0,
                 segmentCount = 0,
@@ -353,6 +359,29 @@ class ListenerViewModel(context: Context) : ViewModel() {
             sessionCount = count,
             selectedSegment = null
         )
+        refreshUnderstanding()
+    }
+
+    /**
+     * I7: (re)computes derived session understanding for the session under
+     * review. Pure orchestration over existing rows + FTS; failures resolve
+     * to null (existing UI stays exactly as before).
+     */
+    fun refreshUnderstanding() {
+        val s = _state.value
+        val semesterId = s.semesterId ?: return
+        if (s.reviewSessionId == 0L || s.segments.isEmpty()) {
+            _state.value = s.copy(understanding = null)
+            return
+        }
+        viewModelScope.launch {
+            val understanding = runCatching {
+                intelligence.understand(s.reviewSessionId, semesterId, s.segments)
+            }.onFailure {
+                android.util.Log.w("ListenerI7", "understand failed for session=" + s.reviewSessionId, it)
+            }.getOrNull()
+            _state.value = _state.value.copy(understanding = understanding)
+        }
     }
 
     private suspend fun enterError(e: Exception) {

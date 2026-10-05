@@ -113,6 +113,22 @@ object AppContainer {
         }
 
     @Volatile
+    private var listenerIntelligence: com.prasbin.shadowlearn.data.listener.ListenerIntelligence? = null
+
+    /**
+     * I7 listener intelligence — derived per-session understanding from
+     * listener rows + indexed content. Stateless orchestration over the
+     * existing search and academic tables; nothing persisted.
+     */
+    fun listenerIntelligence(context: Context): com.prasbin.shadowlearn.data.listener.ListenerIntelligence =
+        listenerIntelligence ?: synchronized(this) {
+            listenerIntelligence ?: com.prasbin.shadowlearn.data.listener.ListenerIntelligence(
+                search = search(context),
+                academicDao = database(context).academicDao()
+            ).also { listenerIntelligence = it }
+        }
+
+    @Volatile
     private var flashcardRepo: com.prasbin.shadowlearn.data.cards.FlashcardRepository? = null
 
     fun flashcardDao(context: Context) = database(context).flashcardDao()
