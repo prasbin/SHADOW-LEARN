@@ -27,9 +27,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.prasbin.shadowlearn.data.home.HomeTarget
 import com.prasbin.shadowlearn.data.intelligence.GroundedExplanation
+import com.prasbin.shadowlearn.data.intelligence.RelatedMaterial
 import com.prasbin.shadowlearn.data.intelligence.WeaknessStatus
 import com.prasbin.shadowlearn.navigation.Routes
 import com.prasbin.shadowlearn.ui.components.ExplanationDialog
+import com.prasbin.shadowlearn.ui.components.RelatedMaterialDialog
 import com.prasbin.shadowlearn.ui.components.SectionCard
 import com.prasbin.shadowlearn.ui.components.StatRow
 import com.prasbin.shadowlearn.ui.dashboard.DashboardViewModel
@@ -55,6 +57,7 @@ fun DashboardScreen(onNavigate: (String) -> Unit = {}) {
     val go = { target: HomeTarget -> onNavigate(target.toRoute()) }
     var explanation: GroundedExplanation? by remember { mutableStateOf<GroundedExplanation?>(null) }
     var explanationPractice: Long? by remember { mutableStateOf<Long?>(null) }
+    var relatedMaterials: List<RelatedMaterial>? by remember { mutableStateOf<List<RelatedMaterial>?>(null) }
     val openExplanation = { expl: GroundedExplanation, practiceFileId: Long? ->
         explanation = expl
         explanationPractice = practiceFileId
@@ -62,6 +65,10 @@ fun DashboardScreen(onNavigate: (String) -> Unit = {}) {
     val closeExplanation = {
         explanation = null
         explanationPractice = null
+    }
+    val openRelated = { materials: List<RelatedMaterial> ->
+        closeExplanation()
+        relatedMaterials = materials
     }
 
     LazyColumn(
@@ -310,6 +317,12 @@ fun DashboardScreen(onNavigate: (String) -> Unit = {}) {
                                 modifier = Modifier.fillMaxWidth().height(48.dp)
                             ) { Text("OPEN SOURCE ›") }
                         }
+                        if (area.relatedMaterials.isNotEmpty()) {
+                            TextButton(
+                                onClick = { openRelated(area.relatedMaterials) },
+                                modifier = Modifier.fillMaxWidth().height(48.dp)
+                            ) { Text("RELATED MATERIAL ›") }
+                        }
                     }
                     Text(
                         "File-level signals only — concept tracking arrives later.",
@@ -351,7 +364,20 @@ fun DashboardScreen(onNavigate: (String) -> Unit = {}) {
             onOpenSearch = { closeExplanation(); onNavigate(Routes.SEARCH) },
             onDismiss = { closeExplanation() },
             practiceFileId = explanationPractice,
-            onPractice = { fileId -> closeExplanation(); onNavigate(Routes.practiceQuiz(fileId)) }
+            onPractice = { fileId -> closeExplanation(); onNavigate(Routes.practiceQuiz(fileId)) },
+            relatedMaterials = s.weakAreas.firstOrNull { it.explanation == expl }?.relatedMaterials
+                ?: emptyList(),
+            onOpenRelated = { openRelated(s.weakAreas.firstOrNull { it.explanation == expl }?.relatedMaterials ?: emptyList()) }
+        )
+    }
+    relatedMaterials?.let { materials ->
+        RelatedMaterialDialog(
+            materials = materials,
+            onOpenSource = { weekId ->
+                relatedMaterials = null
+                onNavigate(Routes.hierarchyWeek(weekId))
+            },
+            onDismiss = { relatedMaterials = null }
         )
     }
 }

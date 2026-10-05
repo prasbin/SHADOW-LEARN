@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.prasbin.shadowlearn.data.intelligence.ExplanationStatus
 import com.prasbin.shadowlearn.data.intelligence.GroundedExplanation
+import com.prasbin.shadowlearn.data.intelligence.RelatedMaterial
 
 /**
  * Shared I4 explanation surface (Home + Status use this — never separate
@@ -35,7 +36,9 @@ fun ExplanationDialog(
     onOpenSearch: () -> Unit,
     onDismiss: () -> Unit,
     practiceFileId: Long? = null,
-    onPractice: (Long) -> Unit = {}
+    onPractice: (Long) -> Unit = {},
+    relatedMaterials: List<RelatedMaterial> = emptyList(),
+    onOpenRelated: () -> Unit = {}
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -50,7 +53,8 @@ fun ExplanationDialog(
             ) {
                 when (explanation.status) {
                     ExplanationStatus.EXPLAINED -> ExplainedBody(
-                        explanation, onOpenSource, practiceFileId, onPractice
+                        explanation, onOpenSource, practiceFileId, onPractice,
+                        relatedMaterials, onOpenRelated
                     )
                     ExplanationStatus.INSUFFICIENT_EVIDENCE -> {
                         Text(
@@ -92,7 +96,9 @@ private fun ExplainedBody(
     explanation: GroundedExplanation,
     onOpenSource: (Long) -> Unit,
     practiceFileId: Long?,
-    onPractice: (Long) -> Unit
+    onPractice: (Long) -> Unit,
+    relatedMaterials: List<RelatedMaterial>,
+    onOpenRelated: () -> Unit
 ) {
     Text(
         "GENERATED FROM YOUR ACADEMIC MATERIAL",
@@ -111,6 +117,13 @@ private fun ExplainedBody(
             onClick = { onPractice(fileId) },
             modifier = Modifier.fillMaxWidth().height(48.dp)
         ) { Text("PRACTICE THIS MATERIAL ›") }
+    }
+    if (relatedMaterials.isNotEmpty()) {
+        Spacer(Modifier.height(4.dp))
+        OutlinedButton(
+            onClick = onOpenRelated,
+            modifier = Modifier.fillMaxWidth().height(48.dp)
+        ) { Text("RELATED MATERIAL ›") }
     }
     Text(
         "BASED ON YOUR MATERIAL",

@@ -27,7 +27,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.prasbin.shadowlearn.navigation.Routes
 import com.prasbin.shadowlearn.data.intelligence.GroundedExplanation
+import com.prasbin.shadowlearn.data.intelligence.RelatedMaterial
 import com.prasbin.shadowlearn.ui.components.ExplanationDialog
+import com.prasbin.shadowlearn.ui.components.RelatedMaterialDialog
 import com.prasbin.shadowlearn.ui.components.SectionCard
 import com.prasbin.shadowlearn.ui.components.GroupSwitcher
 import com.prasbin.shadowlearn.ui.components.StatRow
@@ -47,6 +49,7 @@ fun ProgressScreen(onNavigate: (String) -> Unit = {}) {
     val s by vm.state.collectAsStateWithLifecycle()
     var explanation: GroundedExplanation? by remember { mutableStateOf<GroundedExplanation?>(null) }
     var explanationPractice: Long? by remember { mutableStateOf<Long?>(null) }
+    var relatedMaterials: List<RelatedMaterial>? by remember { mutableStateOf<List<RelatedMaterial>?>(null) }
     val openExplanation = { expl: GroundedExplanation, practiceFileId: Long? ->
         explanation = expl
         explanationPractice = practiceFileId
@@ -54,6 +57,10 @@ fun ProgressScreen(onNavigate: (String) -> Unit = {}) {
     val closeExplanation = {
         explanation = null
         explanationPractice = null
+    }
+    val openRelated = { materials: List<RelatedMaterial> ->
+        closeExplanation()
+        relatedMaterials = materials
     }
 
     LazyColumn(
@@ -162,6 +169,15 @@ fun ProgressScreen(onNavigate: (String) -> Unit = {}) {
                                     modifier = Modifier.fillMaxWidth().height(48.dp)
                                 ) { Text("OPEN SOURCE ›") }
                             }
+                            signal.fileId?.let { fid ->
+                                val related = s.signalRelated[fid] ?: emptyList()
+                                if (related.isNotEmpty()) {
+                                    TextButton(
+                                        onClick = { openRelated(related) },
+                                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                                    ) { Text("RELATED MATERIAL ›") }
+                                }
+                            }
                             Spacer(Modifier.height(4.dp))
                         }
                     }
@@ -215,6 +231,9 @@ fun ProgressScreen(onNavigate: (String) -> Unit = {}) {
         }
     }
     explanation?.let { expl ->
+        val explRelated = s.signalExplanations.entries
+            .firstOrNull { it.value == expl }?.key
+            ?.let { s.signalRelated[it] } ?: emptyList()
         ExplanationDialog(
             explanation = expl,
             onOpenSource = { weekId -> closeExplanation(); onNavigate(Routes.hierarchyWeek(weekId)) },
@@ -222,7 +241,19 @@ fun ProgressScreen(onNavigate: (String) -> Unit = {}) {
             onOpenSearch = { closeExplanation(); onNavigate(Routes.SEARCH) },
             onDismiss = { closeExplanation() },
             practiceFileId = explanationPractice,
-            onPractice = { fileId -> closeExplanation(); onNavigate(Routes.practiceQuiz(fileId)) }
+            onPractice = { fileId -> closeExplanation(); onNavigate(Routes.practiceQuiz(fileId)) },
+            relatedMaterials = explRelated,
+            onOpenRelated = { openRelated(explRelated) }
+        )
+    }
+    relatedMaterials?.let { materials ->
+        RelatedMaterialDialog(
+            materials = materials,
+            onOpenSource = { weekId ->
+                relatedMaterials = null
+                onNavigate(Routes.hierarchyWeek(weekId))
+            },
+            onDismiss = { relatedMaterials = null }
         )
     }
 }

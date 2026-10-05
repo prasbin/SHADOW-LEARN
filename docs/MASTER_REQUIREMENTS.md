@@ -181,6 +181,10 @@ no secrets in the repo, no keystores/passwords committed.
   triple-enforced semester isolation, max 3, deduped); no tables, no new
   DAO methods, no AI/network; 498/498 unit tests; regression-smoked on
   CE_Test.
+- I6 UI (shared RelatedMaterialDialog on Home weak areas, Status signals,
+  ExplanationDialog; on-demand shared repository results; existing week
+  routes only); 500/500 unit tests; journeys A/B/C validated on CE_Test
+  via dumps (fixture import + real quiz mistakes).
 - Intelligence Layer governing requirement recorded in
   docs/INTELLIGENCE_LAYER.md (DESIGN ONLY; I1 Evidence Contract pending
   review before any implementation).

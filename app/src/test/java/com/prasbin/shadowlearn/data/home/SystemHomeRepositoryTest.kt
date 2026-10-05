@@ -21,6 +21,9 @@ import com.prasbin.shadowlearn.data.db.Week
 import com.prasbin.shadowlearn.data.intelligence.EvidenceRepository
 import com.prasbin.shadowlearn.data.intelligence.GroundedRetrievalRepository
 import com.prasbin.shadowlearn.data.intelligence.RecommendationKind
+import com.prasbin.shadowlearn.data.intelligence.RelationshipRepository
+import com.prasbin.shadowlearn.data.intelligence.RelationshipStatus
+import com.prasbin.shadowlearn.data.intelligence.RelationshipType
 import com.prasbin.shadowlearn.data.search.FtsIndex
 import com.prasbin.shadowlearn.data.search.RoomBackedSqlExecutor
 import com.prasbin.shadowlearn.data.search.SearchRepository
@@ -64,6 +67,15 @@ class SystemHomeRepositoryTest {
                 db.academicDao(), db.extractionDao(), db.quizDao(), db.flashcardDao()
             ),
             GroundedRetrievalRepository(
+                db.academicDao(), db.extractionDao(),
+                SearchRepository(
+                    db.searchDao(),
+                    FtsIndex(RoomBackedSqlExecutor(db.openHelper.writableDatabase)),
+                    Dispatchers.Unconfined
+                ),
+                Dispatchers.Unconfined
+            ),
+            RelationshipRepository(
                 db.academicDao(), db.extractionDao(),
                 SearchRepository(
                     db.searchDao(),
@@ -345,5 +357,76 @@ class SystemHomeRepositoryTest {
         // T13: recommendation carries the same grounded explanation.
         assertEquals(expl, snap.recommendation.explanation)
         assertTrue(snap.recommendation.sourceExcerpt != null)
+    }
+
+    @Test
+    fun weakArea_relatedMatchesDirectSharedCall() = runBlocking {
+        val academic = db.academicDao()
+        val yearId = academic.insertYear(AcademicYear(name = "Year 1", sortOrder = 0))
+        semId = academic.insertSemester(Semester(yearId = yearId, name = "S1", sortOrder = 0))
+        val modId = academic.insertModule(Module(semesterId = semId, name = "M"))
+        val weekId = academic.insertWeek(Week(moduleId = modId, weekNumber = 1, title = "W1"))
+        val f1 = academic.insertFile(
+            AcademicFile(
+                weekId = weekId, fileName = "alpha.pdf", filePath = "/tmp/alpha.pdf",
+                fileType = "pdf", sha256 = "aaa", relativePath = "alpha.pdf"
+            )
+        )
+        val f2 = academic.insertFile(
+            AcademicFile(
+                weekId = weekId, fileName = "beta.pdf", filePath = "/tmp/beta.pdf",
+                fileType = "pdf", sha256 = "bbb", relativePath = "beta.pdf"
+            )
+        )
+        val textA = "Photosynthesis converts light energy in chloroplast thylakoid membranes producing glucose and oxygen."
+        val textB = "Cellular respiration releases energy from glucose using oxygen in mitochondria, unlike thylakoid photosynthesis pathways."
+        val idsA = db.extractionDao().insertChunks(
+            listOf(
+                com.prasbin.shadowlearn.data.db.DocumentChunk(
+                    academicFileId = f1, chunkIndex = 0, pageNumber = 1, text = textA, charCount = textA.length
+                )
+            )
+        )
+        val idsB = db.extractionDao().insertChunks(
+            listOf(
+                com.prasbin.shadowlearn.data.db.DocumentChunk(
+                    academicFileId = f2, chunkIndex = 0, pageNumber = 1, text = textB, charCount = textB.length
+                )
+            )
+        )
+        val fts = FtsIndex(RoomBackedSqlExecutor(db.openHelper.writableDatabase))
+        fts.insertAll(idsA.zip(listOf(textA)) + idsB.zip(listOf(textB)))
+        seedMistakesOnDays(listOf(9, 5, 2), f1, "alpha.pdf")
+
+        val snap = repo.snapshot(semId, now)
+        val area = snap.weakAreas.first { it.label == "alpha.pdf" }
+        assertTrue(area.relatedMaterials.isNotEmpty())
+        val direct = RelationshipRepository(
+            db.academicDao(), db.extractionDao(),
+            SearchRepository(
+                db.searchDao(), fts, Dispatchers.Unconfined
+            ),
+            Dispatchers.Unconfined
+        ).relatedFor(semId, f1)
+        // Home and Status consume this identical shared result.
+        assertEquals(direct, area.relatedMaterials)
+        val beta = area.relatedMaterials.first { it.relatedFileName == "beta.pdf" }
+        assertEquals(RelationshipType.SAME_WEEK, beta.type)
+        assertEquals(RelationshipStatus.VERIFIED, beta.status)
+        // Excerpt is grounded: every matched term occurs verbatim in the text.
+        assertTrue(beta.excerpt.isNotBlank())
+        assertTrue(beta.matchedTerms.isNotEmpty())
+        assertTrue(beta.matchedTerms.all { textB.lowercase().contains(it) })
+    }
+
+    @Test
+    fun weakArea_withoutRelations_hidesAction() = runBlocking {
+        seedScope()
+        seedMistakesOnDays(listOf(9, 5, 2))
+
+        val snap = repo.snapshot(semId, now)
+
+        val area = snap.weakAreas.first { it.label == "notes.pdf" }
+        assertTrue(area.relatedMaterials.isEmpty())
     }
 }

@@ -204,7 +204,8 @@ object AppContainer {
                 flashcardDao = database(context).flashcardDao(),
                 listenerDao = database(context).listenerDao(),
                 evidence = evidence(context),
-                retrieval = retrieval(context)
+                retrieval = retrieval(context),
+                relationships = relationships(context)
             ).also { homeRepo = it }
         }
 

@@ -48,6 +48,11 @@ data class WeakArea(
      * Set only when the file exists with indexed chunks (I5 gate).
      */
     val practiceFileId: Long? = null,
+    /**
+     * I6 related materials for this source (max 3, ranked). Empty = no
+     * RELATED MATERIAL action (honest absence, never a dead button).
+     */
+    val relatedMaterials: List<com.prasbin.shadowlearn.data.intelligence.RelatedMaterial> = emptyList(),
     /** Grounded explanation when the source resolved (else null = no EXPLAIN). */
     val explanation: com.prasbin.shadowlearn.data.intelligence.GroundedExplanation? = null
 )
@@ -103,6 +108,7 @@ class SystemHomeRepository(
     private val listenerDao: ListenerDao,
     private val evidence: EvidenceRepository,
     private val retrieval: com.prasbin.shadowlearn.data.intelligence.GroundedRetrievalRepository,
+    private val relationships: com.prasbin.shadowlearn.data.intelligence.RelationshipRepository,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
 
@@ -193,7 +199,16 @@ class SystemHomeRepository(
                 signals,
                 "Explain the material associated with this weak area."
             )
-            val weakAreas = buildWeakAreas(signals, explanations, now)
+            // I6: one shared related-materials map (same signals, same repo).
+            val related = mutableMapOf<Long, List<com.prasbin.shadowlearn.data.intelligence.RelatedMaterial>>()
+            for (signal in signals.take(4)) {
+                val fileId = signal.fileId ?: continue
+                if (related.containsKey(fileId)) continue
+                related[fileId] = runCatching {
+                    relationships.relatedFor(semesterId, fileId)
+                }.getOrDefault(emptyList())
+            }
+            val weakAreas = buildWeakAreas(signals, explanations, related, now)
             val activity = buildActivity(semesterId)
             val focus = buildFocus(semesterId, academicDao)
             val recommendation = com.prasbin.shadowlearn.data.intelligence.RecommendationEngine.recommend(
@@ -270,6 +285,7 @@ class SystemHomeRepository(
     private fun buildWeakAreas(
         signals: List<com.prasbin.shadowlearn.data.intelligence.WeaknessSignal>,
         explanations: Map<Long, com.prasbin.shadowlearn.data.intelligence.GroundedExplanation>,
+        related: Map<Long, List<com.prasbin.shadowlearn.data.intelligence.RelatedMaterial>>,
         now: Long
     ): List<WeakArea> =
         signals.take(4).map { signal ->
@@ -280,6 +296,7 @@ class SystemHomeRepository(
                 status = signal.status.name,
                 sourceWeekId = signal.weekId,
                 practiceFileId = if (signal.practicable) signal.fileId else null,
+                relatedMaterials = signal.fileId?.let { related[it] } ?: emptyList(),
                 explanation = signal.fileId?.let { explanations[it] }
             )
         }

@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.prasbin.shadowlearn.data.AppContainer
 import com.prasbin.shadowlearn.data.intelligence.GroundedExplanation
+import com.prasbin.shadowlearn.data.intelligence.RelatedMaterial
 import com.prasbin.shadowlearn.data.intelligence.WeaknessSignal
 import com.prasbin.shadowlearn.data.progression.ProgressMilestones
 import kotlinx.coroutines.flow.SharingStarted
@@ -33,7 +34,9 @@ data class ProgressUiState(
     /** Same I1 engine result Home reads (max 3 displayed); empty = UNKNOWN. */
     val learningSignals: List<WeaknessSignal> = emptyList(),
     /** I4 explanations keyed by owning file id — same shared objects as Home. */
-    val signalExplanations: Map<Long, GroundedExplanation> = emptyMap()
+    val signalExplanations: Map<Long, GroundedExplanation> = emptyMap(),
+    /** I6 related materials keyed by owning file id — same shared results as Home. */
+    val signalRelated: Map<Long, List<RelatedMaterial>> = emptyMap()
 )
 
 class ProgressViewModel(context: Context) : ViewModel() {
@@ -44,6 +47,7 @@ class ProgressViewModel(context: Context) : ViewModel() {
     private val progression = AppContainer.progression(context.applicationContext)
     private val evidence = AppContainer.evidence(context.applicationContext)
     private val retrieval = AppContainer.retrieval(context.applicationContext)
+    private val relationships = AppContainer.relationships(context.applicationContext)
 
     val state = combine(
         combine(
@@ -91,6 +95,19 @@ class ProgressViewModel(context: Context) : ViewModel() {
                         "Explain the material associated with this weak area."
                     )
                 }.getOrDefault(emptyMap())
+            } else {
+                emptyMap()
+            },
+            signalRelated = if (scopeOk) {
+                val out = mutableMapOf<Long, List<RelatedMaterial>>()
+                for (signal in signals) {
+                    val fileId = signal.fileId ?: continue
+                    if (out.containsKey(fileId)) continue
+                    out[fileId] = runCatching {
+                        relationships.relatedFor(semesterId!!, fileId)
+                    }.getOrDefault(emptyList())
+                }
+                out
             } else {
                 emptyMap()
             }
