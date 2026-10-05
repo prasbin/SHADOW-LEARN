@@ -391,6 +391,38 @@ Personal offline-first university learning OS (native Android).
   - APK: 20,339,200 → **81,883,512 bytes (+61,544,312)** — ~41 MB
     model + ~20 MB native .so, stated plainly.
 
+## I7 Listener Intelligence — checkpoint (implemented; physical validation BLOCKED)
+
+- Implemented at `f650912` (no new tables, no migration, no transcript
+  writes): role classifier (ACADEMIC / TRANSCRIPT_ONLY / FILLER /
+  UNKNOWN) + `understand()` orchestrator (per-term semester-scoped FTS
+  confirmation, max 3 verbatim key points, max 3 grounded sources with
+  week/chunk provenance, PRACTICE gated by `practicable`) +
+  `ListenerViewModel.refreshUnderstanding()` (failures resolve to null
+  with a `Log.w("ListenerI7")` diagnostic) + ListenerScreen card
+  (role counts, verbatim KEY POINTS, CONNECTED MATERIAL with
+  shared-term explanations, OPEN SOURCE to the exact chunk, PRACTICE
+  gating, honest no-transcript state).
+- Tests: **513/513 green** (13 new: 6 pure + 7 Room/FTS repository).
+- Emulator + seeded-test evidence remain valid: record → pause/resume
+  segment cut → review renders role counts + honest line; silent-mic
+  transcription FAILED honestly with reasons + retry; card persists
+  post-transcription; logcat clean; grounding covered end to end by
+  seeded Room/FTS tests.
+- Physical-device validation: **BLOCKED pending reconnection** — Redmi
+  Note 14 5G (`YPA6RWNB7L7HPBRK`) physically disconnected (USB devnode
+  phantom, `adb devices` empty over ~13 min of polling, no admin rights
+  for bus rescan). No device evidence fabricated; no code changed for
+  this checkpoint.
+- On device return: safely stop/finish the orphaned live phone
+  recording through the app (do not delete it, do not touch Room
+  directly), inspect its final status, then run the required
+  real-device test: real speech → offline Vosk → READY transcript →
+  Listener Intelligence → honest source/practice result
+  (TRANSCRIPT-ONLY path is an acceptable PASS if the spoken content
+  does not overlap the installed corpus).
+- I8 NOT started.
+
 ## Features (Phase 7)
 
 - **Listener Mode foundation, fully offline** (Room v6 tables
