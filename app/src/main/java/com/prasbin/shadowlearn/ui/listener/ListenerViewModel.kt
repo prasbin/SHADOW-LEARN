@@ -10,6 +10,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.prasbin.shadowlearn.data.AppContainer
 import com.prasbin.shadowlearn.data.db.ListenerSegment
+import com.prasbin.shadowlearn.data.db.ListenerSession
 import com.prasbin.shadowlearn.data.listener.ActiveRecording
 import com.prasbin.shadowlearn.data.listener.ListenerException
 import com.prasbin.shadowlearn.data.listener.ListenerRepository
@@ -136,7 +137,30 @@ class ListenerViewModel(context: Context) : ViewModel() {
         } else {
             base.copy(kind = ListenerUiKind.IDLE, sessionCount = count)
         }
-        refreshUnderstanding()
+        if (recovered != null) {
+            refreshUnderstanding()
+            return
+        }
+        // I7 fix (real-device finding): a completed session with pending
+        // transcripts reopens its review here, so TRANSCRIBE stays reachable
+        // after tab switches and restarts. Without this the Home "Transcribe
+        // N segments" objective lands on IDLE with no path back to the work.
+        // No new UI, tables, or navigation — the existing review is reused.
+        val sessions = runCatching { repo.sessionsOfSemester(semesterId) }.getOrDefault(emptyList())
+        val resume = pickResumeSession(sessions) { id ->
+            runCatching { repo.pendingSegmentCount(id) }.getOrDefault(0)
+        }
+        if (resume != null) {
+            showSegments(resume.id, resume.status == ListenerSession.STATUS_COMPLETED)
+            // showSegments only knows the in-memory recording path (null here),
+            // so restore the persisted row values for an honest summary.
+            _state.value = _state.value.copy(
+                reviewStatus = resume.status,
+                reviewAudioPath = resume.audioPath
+            )
+        } else {
+            refreshUnderstanding()
+        }
     }
 
     fun hasPermission(): Boolean =
@@ -432,4 +456,28 @@ class ListenerViewModel(context: Context) : ViewModel() {
             initializer { ListenerViewModel(context.applicationContext) }
         }
     }
+}
+
+/**
+ * I7 fix: picks the closed session whose review should reopen on Listener
+ * entry. [sessions] is latest-first (the DAO returns id DESC); returns the
+ * first completed/interrupted session that still has pending transcripts, or
+ * null when there is no unfinished work. Open (recording/paused) sessions
+ * are owned by recovery, and sessions without pending work stay out of the
+ * way so entry lands on IDLE. The lookup form keeps the scan lazy: pending
+ * counts are only read until the first hit.
+ */
+internal suspend fun pickResumeSession(
+    sessions: List<ListenerSession>,
+    pendingCount: suspend (Long) -> Int
+): ListenerSession? {
+    for (s in sessions) {
+        if ((s.status == ListenerSession.STATUS_COMPLETED ||
+            s.status == ListenerSession.STATUS_INTERRUPTED) &&
+            pendingCount(s.id) > 0
+        ) {
+            return s
+        }
+    }
+    return null
 }

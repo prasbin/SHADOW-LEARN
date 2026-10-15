@@ -237,6 +237,10 @@ class ListenerRepository(
     suspend fun sessionsOfSemester(semesterId: Long) =
         dao.sessionsOfSemester(semesterId)
 
+    /** Still-pending transcript count for [sessionId] (I7 resume lookup). */
+    suspend fun pendingSegmentCount(sessionId: Long): Int =
+        dao.pendingSegmentCount(sessionId)
+
     /** Recent peak amplitude, or 0 when idle/unavailable. Never throws. */
     fun amplitude(): Int = runCatching { recorder?.maxAmplitude() ?: 0 }.getOrDefault(0)
 
