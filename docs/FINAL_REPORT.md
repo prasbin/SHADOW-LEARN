@@ -3,7 +3,8 @@
 **Date of report:** 2026-11-04
 **Work commit:** `39e269f0c092e6ebf72964e7ed236d5b9bd65b20` — `feat: add direct upload, large-corpus paging, assistant slice and home fix`
 **Pre-pass baseline (origin/main):** `91ea7b4e047155ab8f5bb1bcf16dcc65b5f25ace`
-**Report artifact commit:** (this file; see `git log`)
+**Final report commit:** `9150b0e42e1d9a5b6ef9eaa99c585312b0e5be2d` — `docs: add final product evolution report`
+**Final local HEAD at report time:** `9150b0e42e1d9a5b6ef9eaa99c585312b0e5be2d`
 
 ---
 
@@ -151,7 +152,8 @@
 
 ## Final state
 
-- Local HEAD: `39e269f0c092e6ebf72964e7ed236d5b9bd65b20` (`feat: add direct upload, large-corpus paging, assistant slice and home fix`)
+- Local HEAD (final): `9150b0e42e1d9a5b6ef9eaa99c585312b0e5be2d`
+- Work commit: `39e269f0c092e6ebf72964e7ed236d5b9bd65b20`
 - Working tree: clean at time of final report generation.
 - Remaining open item: GitHub backup (`BLOCKED` on credentials) and optional
   physical-device picker e2e (marked **DEFERRED**).
