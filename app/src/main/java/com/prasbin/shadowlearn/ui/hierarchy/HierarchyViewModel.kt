@@ -39,6 +39,10 @@ class HierarchyViewModel(context: Context) : ViewModel() {
 
     fun filesOf(weekId: Long): Flow<List<AcademicFile>> = dao.observeFiles(weekId)
 
+    /** Bounded page for weeks with many sources (1,000+ notebook target). */
+    fun filesPage(weekId: Long, limit: Int): Flow<List<AcademicFile>> =
+        dao.observeFilesLimited(weekId, limit)
+
     suspend fun yearName(yearId: Long): String? = dao.year(yearId)?.name
 
     /** "Year 1 · Semester 1", null when either row is gone. */

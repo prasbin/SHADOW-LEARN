@@ -314,6 +314,29 @@ private fun AboutCard(sessionCount: Int) {
         )
         Spacer(Modifier.height(8.dp))
         MonoText("SESSIONS THIS SEMESTER: $sessionCount")
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "TRANSCRIPTION CAPABILITY",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.secondary
+        )
+        Text(
+            "On-device engine: Vosk small English model (bundled, offline). " +
+                "English speech only. Nepali/Devanagari and Nepali-English " +
+                "code-switching are not supported yet — no multilingual model " +
+                "ships with this build. Mathematical formulas are transcribed " +
+                "as ordinary spoken words, not reconstructed equations.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Long lectures stay resilient: audio is one file per session, " +
+                "segments close at every pause/resume, and an interrupted " +
+                "session is recovered on relaunch with its audio preserved.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Spacer(Modifier.height(4.dp))
         Text(
             "Recording needs microphone access and runs as a visible " +

@@ -96,6 +96,21 @@ class ExtractionRepository(
         }
     }
 
+    /**
+     * Extracts + indexes exactly one stored file (direct-upload per-source
+     * state). Resolves the owning semester through the FK walk; a file that
+     * cannot be resolved reports an honest failure instead of guessing.
+     */
+    suspend fun processFile(fileId: Long): ExtractionSummary = withContext(ioDispatcher) {
+        val file = runCatching { academicDao.file(fileId) }.getOrNull()
+            ?: return@withContext emptySummary(0, listOf("File $fileId not found"))
+        val week = runCatching { academicDao.week(file.weekId) }.getOrNull()
+            ?: return@withContext emptySummary(1, listOf("${file.fileName}: owning week missing"))
+        val module = runCatching { academicDao.module(week.moduleId) }.getOrNull()
+            ?: return@withContext emptySummary(1, listOf("${file.fileName}: owning module missing"))
+        processFiles(listOf(file), module.semesterId)
+    }
+
     private suspend fun processFiles(files: List<AcademicFile>, semesterId: Long): ExtractionSummary {
         val start = now()
         fts.ensureSchema()

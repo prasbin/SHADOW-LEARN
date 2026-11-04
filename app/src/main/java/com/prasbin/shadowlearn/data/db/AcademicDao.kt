@@ -154,6 +154,14 @@ interface AcademicDao {
     @Query("SELECT * FROM academic_files WHERE weekId = :weekId ORDER BY fileName")
     fun observeFiles(weekId: Long): Flow<List<AcademicFile>>
 
+    /**
+     * Bounded source page for large notebooks (1,000+ sources). The caller
+     * raises [limit] only when the student asks for more, so a week with
+     * hundreds of files never materializes the whole list at once.
+     */
+    @Query("SELECT * FROM academic_files WHERE weekId = :weekId ORDER BY fileName LIMIT :limit")
+    fun observeFilesLimited(weekId: Long, limit: Int): Flow<List<AcademicFile>>
+
     @Query("SELECT * FROM academic_files WHERE weekId = :weekId ORDER BY fileName")
     suspend fun getFiles(weekId: Long): List<AcademicFile>
 

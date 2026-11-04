@@ -75,6 +75,29 @@ fun DashboardScreen(onNavigate: (String) -> Unit = {}) {
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        if (s.loading) {
+            item {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Loading SYSTEM HOME…",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        s.error?.let { message ->
+            item {
+                SectionCard("System Home unavailable") {
+                    Text(message, style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.height(8.dp))
+                    Button(
+                        onClick = { vm.refresh() },
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) { Text("RETRY") }
+                }
+            }
+        }
         item {
             Text("SHADOW LEARN", style = MaterialTheme.typography.headlineLarge)
             Text(
@@ -132,6 +155,21 @@ fun DashboardScreen(onNavigate: (String) -> Unit = {}) {
                     Button(onClick = { go(focus.target) }, modifier = Modifier.fillMaxWidth()) {
                         Text("Continue")
                     }
+                }
+            }
+        }
+        item {
+            SectionCard("Academic Assistant") {
+                Text(
+                    "Ask your academic system questions. Answers are grounded in your indexed material.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = { onNavigate(Routes.ASSISTANT) },
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                ) {
+                    Text("ACADEMIC ASSISTANT")
                 }
             }
         }

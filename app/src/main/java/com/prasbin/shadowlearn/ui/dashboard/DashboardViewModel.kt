@@ -11,7 +11,10 @@ import com.prasbin.shadowlearn.data.home.FocusState
 import com.prasbin.shadowlearn.data.home.HomeObjective
 import com.prasbin.shadowlearn.data.home.Recommendation
 import com.prasbin.shadowlearn.data.home.WeakArea
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 
@@ -22,8 +25,15 @@ import kotlinx.coroutines.flow.stateIn
  * system-home aggregator — all derived from real persisted rows (never
  * fabricated). Year / semester names resolve from the academic tables;
  * a dangling selection reports honestly instead of showing raw ids.
+ *
+ * [loading] is true until the first real snapshot arrives, so the screen
+ * never silently renders default values as if they were data. A failed
+ * aggregation surfaces [error] with a retry action instead of a blank or
+ * permanently "empty" Home.
  */
 data class DashboardUiState(
+    val loading: Boolean = true,
+    val error: String? = null,
     val level: Int = 1,
     val xp: Long = 0L,
     val xpIntoLevel: Long = 0L,
@@ -56,15 +66,23 @@ class DashboardViewModel(
     private val academicProgress = AppContainer.academicProgress(context.applicationContext)
     private val home = AppContainer.systemHome(context.applicationContext)
 
+    /** Incremented by [refresh]; re-runs the aggregation without a new VM. */
+    private val refreshTick = MutableStateFlow(0L)
+
+    private val moduleCount: Flow<Int> = dao.observeModuleCount().catch { emit(0) }
+
     val state = combine(
         combine(
-            dao.observeModuleCount(),
+            moduleCount,
             settings.currentYearId,
             settings.currentSemesterId
         ) { modules, yearId, semesterId -> Triple(modules, yearId, semesterId) },
-        progression.observe(),
-        academicProgress.observe()
-    ) { scope, prog, progress ->
+        progression.observe().catch { emit(com.prasbin.shadowlearn.data.progression.Progression()) },
+        academicProgress.observe().catch {
+            emit(com.prasbin.shadowlearn.data.progression.AcademicProgress())
+        },
+        refreshTick
+    ) { scope, prog, progress, _ ->
         val (modules, yearId, semesterId) = scope
         val yearName = yearId?.let { id ->
             runCatching { dao.getYears().firstOrNull { it.id == id }?.name }.getOrNull()
@@ -73,12 +91,20 @@ class DashboardViewModel(
             dao.getSemesters(yearId).firstOrNull { it.id == semesterId }?.name
         }.getOrNull()
         val scopeValid = yearName != null && semesterName != null
+        var error: String? = null
         val snapshot = if (semesterId != null && scopeValid) {
-            runCatching { home.snapshot(semesterId, System.currentTimeMillis()) }.getOrNull()
+            try {
+                home.snapshot(semesterId, System.currentTimeMillis())
+            } catch (t: Throwable) {
+                error = "Could not load your system home. Pull to retry."
+                null
+            }
         } else {
             null
         }
         DashboardUiState(
+            loading = false,
+            error = error,
             level = prog.level,
             xp = prog.totalXp,
             xpIntoLevel = prog.xpIntoLevel,
@@ -105,6 +131,11 @@ class DashboardViewModel(
             )
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardUiState())
+
+    /** Explicit retry for the Home aggregation (safe to call repeatedly). */
+    fun refresh() {
+        refreshTick.value += 1
+    }
 
     companion object {
         fun factory(context: Context) = viewModelFactory {

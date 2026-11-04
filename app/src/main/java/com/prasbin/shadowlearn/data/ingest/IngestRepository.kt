@@ -1,13 +1,18 @@
 package com.prasbin.shadowlearn.data.ingest
 
 import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
 import com.prasbin.shadowlearn.data.db.AcademicDao
 import com.prasbin.shadowlearn.data.db.AcademicFile
+import com.prasbin.shadowlearn.data.db.ClassType
 import com.prasbin.shadowlearn.data.db.Module
 import com.prasbin.shadowlearn.data.db.SourceFile
 import com.prasbin.shadowlearn.data.db.Week
 import java.io.File
 import java.io.FileInputStream
+import java.io.IOException
+import java.io.InputStream
 import java.security.DigestInputStream
 import java.security.MessageDigest
 import kotlinx.coroutines.CancellationException
@@ -45,6 +50,23 @@ sealed interface IngestState {
     ) : IngestState
     data class Done(val summary: IngestSummary) : IngestState
     data class Failed(val reason: String, val processed: Int) : IngestState
+}
+
+/** Result of importing one directly-picked source file. */
+sealed interface DirectImportResult {
+    val fileName: String
+
+    /** Stored + row created; extraction still has to run (see processFile). */
+    data class Imported(
+        override val fileName: String,
+        val fileId: Long,
+        val weekId: Long
+    ) : DirectImportResult
+
+    /** Same SHA-256 already exists in this semester (verified dedup). */
+    data class Duplicate(override val fileName: String) : DirectImportResult
+
+    data class Failed(override val fileName: String, val reason: String) : DirectImportResult
 }
 
 /**
@@ -96,6 +118,149 @@ class IngestRepository(
             return
         }
         importStream(stream, semesterId, archiveLabel)
+    }
+
+    /**
+     * Imports one directly-picked source file into [semesterId] at
+     * [moduleName] / [weekNumber]. Reuses the exact ZIP storage path:
+     * stream → private staging → SHA-256 → content-addressed copy →
+     * source_files + academic_files rows. No whole-file buffering.
+     *
+     * Dedup is verified by content hash within the semester: identical bytes
+     * already imported are reported as [DirectImportResult.Duplicate] and no
+     * second reference is created. Other semesters are unaffected.
+     */
+    suspend fun importFile(
+        uri: Uri,
+        semesterId: Long,
+        moduleName: String,
+        weekNumber: Int,
+        classType: ClassType = ClassType.LECTURE
+    ): DirectImportResult {
+        val name = displayName(uri) ?: "source"
+        val stream = runCatching { context.contentResolver.openInputStream(uri) }.getOrNull()
+            ?: return DirectImportResult.Failed(name, "Cannot open selected file.")
+        return stream.use { importStream(it, name, semesterId, moduleName, weekNumber, classType) }
+    }
+
+    /** Stream seam for direct imports (also used by tests without SAF). */
+    suspend fun importStream(
+        stream: InputStream,
+        fileName: String,
+        semesterId: Long,
+        moduleName: String,
+        weekNumber: Int,
+        classType: ClassType = ClassType.LECTURE
+    ): DirectImportResult = withContext(Dispatchers.IO) {
+        val safeName = fileName.substringAfterLast('/').ifBlank { "source" }
+        val ext = IngestFormat.extensionOf(safeName)
+        if (!IngestFormat.isSupported(safeName)) {
+            return@withContext DirectImportResult.Failed(
+                safeName,
+                "Unsupported file type (.$ext). Supported: PDF, DOCX, PPTX, TXT, MD and text formats."
+            )
+        }
+        val module = moduleName.trim().ifEmpty { "Imported" }
+        val week = weekNumber.coerceAtLeast(1)
+        val staging = File(
+            context.cacheDir,
+            "shadowlearn-direct/${System.currentTimeMillis()}-${safeName.hashCode()}"
+        )
+        try {
+            val size = stageStream(stream, staging)
+            val (sha, hashedSize) = hashOf(staging)
+            if (dao.findFileByHashInSemester(semesterId, sha) != null) {
+                return@withContext DirectImportResult.Duplicate(safeName)
+            }
+            val sourceDir = File(context.filesDir, "source").apply { mkdirs() }
+            val content = contentFor(sha, hashedSize, sourceDir, staging, null)
+            ensureCopy(staging, File(content.storedPath))
+            val mid = findOrCreateModule(semesterId, module)
+            val weekId = dao.findWeek(mid, week)?.id
+                ?: dao.insertWeek(Week(moduleId = mid, weekNumber = week, title = null))
+            val relativePath = uniqueRelativePath(semesterId, module, week, safeName)
+            val fileId = dao.insertFile(
+                AcademicFile(
+                    weekId = weekId,
+                    fileName = safeName,
+                    filePath = content.storedPath,
+                    fileType = ext,
+                    sha256 = sha,
+                    classType = classType.name,
+                    relativePath = relativePath,
+                    fileSize = size,
+                    lastModified = System.currentTimeMillis(),
+                    sourceFileId = content.id
+                )
+            )
+            DirectImportResult.Imported(safeName, fileId, weekId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // A failed row insert can leave an unreferenced content copy.
+            runCatching { removeOrphanedContent() }
+            DirectImportResult.Failed(safeName, e.message ?: "Unknown import error")
+        } finally {
+            staging.delete()
+        }
+    }
+
+    /** Copies [stream] to [dest] with the per-file safety cap (never buffers all). */
+    private fun stageStream(stream: InputStream, dest: File): Long {
+        dest.parentFile?.mkdirs()
+        var size = 0L
+        dest.outputStream().use { out ->
+            val buf = ByteArray(64 * 1024)
+            while (true) {
+                val n = stream.read(buf)
+                if (n < 0) break
+                size += n
+                if (size > IngestFormat.MAX_ENTRY_BYTES) {
+                    throw IOException(
+                        "File exceeds the ${IngestFormat.MAX_ENTRY_BYTES / (1024 * 1024)} MB per-file limit."
+                    )
+                }
+                out.write(buf, 0, n)
+            }
+        }
+        return size
+    }
+
+    /** Display name from SAF metadata; falls back to the URI's last segment. */
+    private fun displayName(uri: Uri): String? {
+        val fromProvider = runCatching {
+            context.contentResolver.query(
+                uri,
+                arrayOf(OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null
+            )?.use { c -> if (c.moveToFirst() && c.columnCount > 0) c.getString(0) else null }
+        }.getOrNull()
+        return fromProvider?.takeIf { it.isNotBlank() }
+            ?: uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
+    }
+
+    /** Relative path that never collides with an existing position row. */
+    private suspend fun uniqueRelativePath(
+        semesterId: Long,
+        moduleName: String,
+        weekNumber: Int,
+        fileName: String
+    ): String {
+        val dir = IngestFormat.sanitizeRelativePath("$moduleName/Week $weekNumber")
+        val safeName = IngestFormat.sanitizeRelativePath(fileName)
+        var candidate = "$dir/$safeName"
+        if (dao.findFileByPosition(semesterId, candidate) == null) return candidate
+        val stem = safeName.substringBeforeLast('.', safeName)
+        val ext = safeName.substringAfterLast('.', "")
+        var n = 2
+        while (true) {
+            val suffix = if (ext.isEmpty()) " ($n)" else " ($n).$ext"
+            candidate = "$dir/$stem$suffix"
+            if (dao.findFileByPosition(semesterId, candidate) == null) return candidate
+            n++
+        }
     }
 
     /** Stream-based import core (also used by tests without a ContentResolver). */

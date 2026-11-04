@@ -6,13 +6,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -202,7 +207,8 @@ private fun FilesBody(vm: HierarchyViewModel, weekId: Long) {
     if (title == null) {
         HierarchyEmpty("UNAVAILABLE", "This week is no longer available.")
     } else {
-        val files by vm.filesOf(weekId)
+        var fileLimit by remember(weekId) { mutableStateOf(50) }
+        val files by vm.filesPage(weekId, fileLimit)
             .collectAsStateWithLifecycle(initialValue = emptyList())
         if (files.isEmpty()) {
             HierarchyEmpty("NO MATERIAL", "No files are available for this week.")
@@ -224,6 +230,14 @@ private fun FilesBody(vm: HierarchyViewModel, weekId: Long) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                    }
+                }
+                if (files.size >= fileLimit) {
+                    TextButton(
+                        onClick = { fileLimit += 50 },
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) {
+                        Text("LOAD MORE (${files.size} shown)")
                     }
                 }
             }

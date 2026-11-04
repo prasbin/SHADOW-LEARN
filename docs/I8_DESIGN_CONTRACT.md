@@ -1,7 +1,10 @@
 # I8 — NATURAL ACADEMIC ASSISTANT DESIGN CONTRACT
 
-**Status:** DESIGN ONLY — NOT IMPLEMENTED. No Kotlin changed for this document.
-Implementation requires explicit acceptance.
+**Status:** IMPLEMENTED — first vertical slice. Typed input, `Explain
+[Topic/Term]`, `What should I revise next?`, grounded source cards, OPEN
+SOURCE / PRACTICE navigation, and honest insufficient-evidence states are
+live. Speech input remains deferred. The design text below is unchanged and
+remains the authority for the slice.
 **Baseline:** `ba72e09` (main), synced with `origin/main`.
 **Remote:** `https://github.com/prasbin/SHADOW-LEARN.git`
 

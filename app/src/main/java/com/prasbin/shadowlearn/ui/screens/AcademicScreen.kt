@@ -1,10 +1,12 @@
 package com.prasbin.shadowlearn.ui.screens
 
+import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -21,6 +24,7 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -31,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -39,11 +44,50 @@ import com.prasbin.shadowlearn.data.ingest.IngestState
 import com.prasbin.shadowlearn.ui.components.SectionCard
 import com.prasbin.shadowlearn.ui.components.ScopeStrip
 import com.prasbin.shadowlearn.ui.components.StatRow
+import com.prasbin.shadowlearn.ui.ingest.DirectUploadStatus
 import com.prasbin.shadowlearn.ui.ingest.IngestViewModel
+import com.prasbin.shadowlearn.ui.ingest.PickedSource
 import com.prasbin.shadowlearn.navigation.Routes
 import com.prasbin.shadowlearn.util.formatBytes
 
 private data class PickedZip(val uri: Uri, val name: String, val size: Long)
+
+/** Direct-upload MIME filters (extension validation remains authoritative). */
+private val DIRECT_MIME_TYPES = arrayOf(
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/msword",
+    "application/vnd.ms-powerpoint",
+    "text/plain",
+    "text/markdown",
+    "text/x-markdown"
+)
+
+/** SAF display name for a picked source (falls back to the URI segment). */
+private fun displayName(context: Context, uri: Uri): String {
+    val fromProvider = runCatching {
+        context.contentResolver.query(
+            uri,
+            arrayOf(OpenableColumns.DISPLAY_NAME),
+            null,
+            null,
+            null
+        )?.use { c -> if (c.moveToFirst() && c.columnCount > 0) c.getString(0) else null }
+    }.getOrNull()
+    return fromProvider?.takeIf { it.isNotBlank() }
+        ?: uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
+        ?: "source"
+}
+
+private fun DirectUploadStatus.label(): String = when (this) {
+    DirectUploadStatus.QUEUED -> "QUEUED"
+    DirectUploadStatus.IMPORTING -> "IMPORTING…"
+    DirectUploadStatus.PROCESSING -> "PROCESSING…"
+    DirectUploadStatus.READY -> "READY"
+    DirectUploadStatus.DUPLICATE -> "DUPLICATE"
+    DirectUploadStatus.FAILED -> "FAILED"
+}
 
 /**
  * Phase 2 Academic tab: Year/Semester context, SAF ZIP picker, import with
@@ -62,6 +106,15 @@ fun AcademicScreen(onNavigate: (String) -> Unit = {}) {
     var picked by remember { mutableStateOf<PickedZip?>(null) }
     var yearExpanded by remember { mutableStateOf(false) }
     var semesterExpanded by remember { mutableStateOf(false) }
+    var directModule by remember { mutableStateOf("Imported") }
+    var directWeekText by remember { mutableStateOf("1") }
+    var pickedSources by remember { mutableStateOf<List<PickedSource>>(emptyList()) }
+    val direct by vm.direct.collectAsStateWithLifecycle()
+    val directBusy = direct.any {
+        it.status == DirectUploadStatus.QUEUED ||
+            it.status == DirectUploadStatus.IMPORTING ||
+            it.status == DirectUploadStatus.PROCESSING
+    }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -77,6 +130,24 @@ fun AcademicScreen(onNavigate: (String) -> Unit = {}) {
         }
         picked = PickedZip(uri, name, size)
         vm.resetImport()
+    }
+
+    val directPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isNullOrEmpty()) return@rememberLauncherForActivityResult
+        val sources = uris.map { uri ->
+            // Persist read access for retry within this session.
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            PickedSource(uri, displayName(context, uri))
+        }
+        pickedSources = sources
+        vm.resetDirect()
     }
 
     LazyColumn(
@@ -129,6 +200,103 @@ fun AcademicScreen(onNavigate: (String) -> Unit = {}) {
                     onSelectYear = { vm.selectYear(it); yearExpanded = false },
                     onSelectSemester = { vm.selectSemester(it); semesterExpanded = false }
                 )
+            }
+        }
+
+        item {
+            SectionCard("Add sources (direct upload)") {
+                Text(
+                    "Pick PDF, DOCX, PPTX, TXT or Markdown files directly — no ZIP needed. " +
+                        "Each file is copied into app-private storage, hashed, deduplicated, " +
+                        "extracted and indexed.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = directModule,
+                    onValueChange = { directModule = it },
+                    label = { Text("Module") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = directWeekText,
+                    onValueChange = { text ->
+                        if (text.length <= 3 && text.all { it.isDigit() }) directWeekText = text
+                    },
+                    label = { Text("Week") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+                val directWeek = directWeekText.toIntOrNull()
+                val semId = s.currentSemesterId
+                OutlinedButton(
+                    onClick = { directPicker.launch(DIRECT_MIME_TYPES) },
+                    enabled = semId != null && directWeek != null && directWeek >= 1 && !directBusy,
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                ) { Text("SELECT FILES") }
+                if (semId == null) {
+                    Text(
+                        "Select a year and semester first.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else if (directWeek == null || directWeek < 1) {
+                    Text(
+                        "Enter a week number (1 or higher).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                val chosen = pickedSources
+                if (chosen.isNotEmpty() && direct.isEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "${chosen.size} file(s) selected.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                if (chosen.isNotEmpty() && semId != null && directWeek != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            vm.importFiles(
+                                files = chosen,
+                                semesterId = semId,
+                                moduleName = directModule,
+                                weekNumber = directWeek
+                            )
+                        },
+                        enabled = !directBusy,
+                        modifier = Modifier.fillMaxWidth().height(52.dp)
+                    ) {
+                        Text(if (direct.any { it.status == DirectUploadStatus.FAILED }) "RETRY IMPORT" else "IMPORT SELECTED")
+                    }
+                }
+                if (direct.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text("SOURCE STATUS", style = MaterialTheme.typography.labelLarge)
+                    direct.forEach { upload ->
+                        Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                            Text(
+                                "${upload.status.label()}  ${upload.name}",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            upload.reason?.let {
+                                Text(
+                                    it,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (upload.status == DirectUploadStatus.FAILED)
+                                        MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -326,13 +494,23 @@ private fun HierarchyBrowser(vm: IngestViewModel, semesterId: Long) {
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.padding(start = 8.dp)
             )
-            val files by vm.filesOf(week.id).collectAsStateWithLifecycle(initialValue = emptyList())
+            var fileLimit by remember(week.id) { mutableStateOf(50) }
+            val files by vm.filesPage(week.id, fileLimit)
+                .collectAsStateWithLifecycle(initialValue = emptyList())
             files.forEach { f ->
                 Text(
                     "[${f.classType}] ${f.fileName} (${formatBytes(f.fileSize)})",
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(start = 16.dp)
                 )
+            }
+            if (files.size >= fileLimit) {
+                TextButton(
+                    onClick = { fileLimit += 50 },
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                ) {
+                    Text("LOAD MORE (${files.size} shown)")
+                }
             }
         }
     }

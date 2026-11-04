@@ -24,6 +24,9 @@ object Routes {
     const val HIERARCHY_MODULE = "hierarchy/module"
     const val HIERARCHY_WEEK = "hierarchy/week"
 
+    /** I8 academic assistant destination (reached from SYSTEM HOME; no new tab). */
+    const val ASSISTANT = "assistant"
+
     fun hierarchyRoot(): String = HIERARCHY
     fun hierarchyYear(yearId: Long): String = "$HIERARCHY_YEAR/$yearId"
     fun hierarchySemester(semesterId: Long): String = "$HIERARCHY_SEMESTER/$semesterId"
@@ -65,6 +68,37 @@ fun tabForRoute(route: String?): NavTab? {
             route.startsWith(Routes.QUIZ + "/") -> NavTab.STUDY
         route == Routes.LISTENER -> NavTab.LISTEN
         route == Routes.PROGRESS || route == Routes.SETTINGS -> NavTab.SYSTEM
+        // The assistant is a HOME-originated destination, not a sixth group.
+        // Leaving it unowned keeps no tab falsely "already open", so tapping
+        // HOME returns to the dashboard reliably.
+        route == Routes.ASSISTANT -> null
         else -> null
     }
 }
+
+/**
+ * Routes a tab's own screen(s) manage internally. Tapping an already-open
+ * group must not reset that in-group state (quiz/flashcards, status/settings,
+ * hierarchy browsing). A route that merely *belongs* to a tab but is a
+ * separate destination (e.g. the assistant reached from HOME) is NOT owned:
+ * tapping the tab then returns to the group's default route.
+ */
+fun NavTab.ownsRoute(route: String?): Boolean = when (this) {
+    NavTab.HOME -> route == Routes.DASHBOARD
+    NavTab.ACADEMIC -> route == Routes.ACADEMIC || route?.startsWith(Routes.HIERARCHY) == true
+    NavTab.STUDY -> route == Routes.QUIZ || route == Routes.FLASHCARDS ||
+        route?.startsWith(Routes.QUIZ + "/") == true
+    NavTab.LISTEN -> route == Routes.LISTENER
+    NavTab.SYSTEM -> route == Routes.PROGRESS || route == Routes.SETTINGS
+}
+
+/**
+ * Whether tapping this tab should restore its saved back stack.
+ *
+ * HOME is deliberately excluded: its saved stack can contain a
+ * HOME-originated detail destination (the academic assistant), and restoring
+ * it made the Home icon reopen the assistant instead of the dashboard. HOME
+ * therefore always lands on [NavTab.defaultRoute]; every other group keeps
+ * its in-group state (quiz/cards, hierarchy, status/settings).
+ */
+fun NavTab.restoresSavedState(): Boolean = this != NavTab.HOME

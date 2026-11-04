@@ -43,6 +43,49 @@ class NavigationTest {
     }
 
     @Test
+    fun assistantIsHomeOriginatedNotNewTab() {
+        // I8: assistant entry lives on SYSTEM HOME; it must not become a
+        // sixth bottom-navigation tab. It is a standalone destination, so no
+        // tab is reported as "already open" while it is visible.
+        assertNull(tabForRoute(Routes.ASSISTANT))
+        assertEquals(5, NavTab.entries.size)
+    }
+
+    @Test
+    fun homeTabOwnsOnlyDashboard() {
+        // Tapping HOME from the assistant must return to the dashboard; the
+        // assistant is a separate destination, not HOME's own screen.
+        assert(NavTab.HOME.ownsRoute(Routes.DASHBOARD))
+        assert(!NavTab.HOME.ownsRoute(Routes.ASSISTANT))
+        assert(!NavTab.HOME.ownsRoute(null))
+    }
+
+    @Test
+    fun groupedTabsKeepTheirInGroupScreens() {
+        // In-group switchers stay a no-op so their state is never reset.
+        assert(NavTab.ACADEMIC.ownsRoute(Routes.hierarchyWeek(4)))
+        assert(NavTab.STUDY.ownsRoute(Routes.FLASHCARDS))
+        assert(NavTab.STUDY.ownsRoute(Routes.practiceQuiz(9)))
+        assert(NavTab.SYSTEM.ownsRoute(Routes.SETTINGS))
+        assert(NavTab.LISTEN.ownsRoute(Routes.LISTENER))
+        // A different tab never owns another group's route.
+        assert(!NavTab.HOME.ownsRoute(Routes.QUIZ))
+        assert(!NavTab.ACADEMIC.ownsRoute(Routes.SEARCH))
+    }
+
+    @Test
+    fun homeNeverRestoresAssistantStack() {
+        // Regression: HOME's saved back stack once contained the assistant,
+        // so tapping Home reopened the assistant instead of the dashboard.
+        assert(!NavTab.HOME.restoresSavedState())
+        // Other groups keep their in-group screen state.
+        assert(NavTab.ACADEMIC.restoresSavedState())
+        assert(NavTab.STUDY.restoresSavedState())
+        assert(NavTab.LISTEN.restoresSavedState())
+        assert(NavTab.SYSTEM.restoresSavedState())
+    }
+
+    @Test
     fun hierarchyWeekRouteResolves() {
         assertEquals("hierarchy/week/7", hierarchyWeekRoute(7))
         assertNull(hierarchyWeekRoute(null))

@@ -33,6 +33,7 @@ import com.prasbin.shadowlearn.ui.screens.ProgressScreen
 import com.prasbin.shadowlearn.ui.screens.QuizScreen
 import com.prasbin.shadowlearn.ui.screens.SearchScreen
 import com.prasbin.shadowlearn.ui.screens.SettingsScreen
+import com.prasbin.shadowlearn.ui.assistant.AssistantScreen
 
 /**
  * SYSTEM navigation shell: five bottom groups (HOME/ACADEMIC/STUDY/LISTEN/
@@ -55,7 +56,11 @@ fun AppNav() {
             TopAppBar(
                 title = {
                     Text(
-                        (currentTab?.label ?: "SEARCH").uppercase(),
+                        when {
+                            currentRoute == Routes.ASSISTANT -> "ACADEMIC ASSISTANT"
+                            currentTab != null -> currentTab.label.uppercase()
+                            else -> "SEARCH"
+                        },
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -81,13 +86,28 @@ fun AppNav() {
                     NavigationBarItem(
                         selected = currentTab == tab,
                         onClick = {
-                            if (currentTab != tab) {
+                            // Read the LIVE top route at click time. The
+                            // captured composition value can be stale when the
+                            // bottom bar is skipped during recomposition, which
+                            // made HOME look like it was already open while the
+                            // assistant (a HOME-originated destination) was
+                            // showing. Live read keeps reselect a no-op only
+                            // for the group's own screen.
+                            val liveRoute = navController.currentBackStackEntry
+                                ?.destination?.route
+                            if (liveRoute == null || !tab.ownsRoute(liveRoute)) {
                                 navController.navigate(tab.defaultRoute) {
                                     popUpTo(navController.graph.findStartDestination().id) {
                                         saveState = true
                                     }
                                     launchSingleTop = true
-                                    restoreState = true
+                                    // HOME has exactly one root screen. Restoring
+                                    // its saved stack would resurrect the last
+                                    // HOME-originated detail screen (the academic
+                                    // assistant), so HOME always lands on the
+                                    // dashboard. Other groups keep their in-group
+                                    // state (quiz/cards, hierarchy, settings).
+                                    restoreState = tab.restoresSavedState()
                                 }
                             }
                         },
@@ -105,6 +125,9 @@ fun AppNav() {
         ) {
             composable(Routes.DASHBOARD) {
                 DashboardScreen(onNavigate = go)
+            }
+            composable(Routes.ASSISTANT) {
+                AssistantScreen(onNavigate = go)
             }
             composable(Routes.ACADEMIC) { AcademicScreen(onNavigate = go) }
             composable(Routes.HIERARCHY) {
